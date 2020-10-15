@@ -35,7 +35,15 @@ pd.DataFrame(df.shape[1]*[''], index=df.columns, columns=['Description']).to_lat
 print("Rows with NaN demand")
 print(df[df['demand'].isna()])
 
-print(df.isnull().sum())
+print("Number of nan values", df.isnull().sum())
+
+# %% ---------------------- Data cleaning -------------------------------------#
+C_to_K = 273
+
+grid_temp = ['grid1-temp', 'grid2_1-temp', 'grid2_2-temp', 'grid3-temp']
+for temp in grid_temp:
+    print("Number of measurments with temerature above 323 K for " + temp + " :" + str(df[df[temp] > 50+C_to_K].shape[0]))
+    print("Number of measurments with temerature below 223 K for " + temp + " :" + str(df[df[temp] < C_to_K-50].shape[0])+ "\n")
 
 def evaluate_seasonaldata():
     # season has 4 unique values
