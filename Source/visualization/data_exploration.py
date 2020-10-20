@@ -1,20 +1,21 @@
 import os
 import gc
+import datetime as datetime
+from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
-import datetime as datetime
 from sklearn.experimental import enable_iterative_imputer
 from sklearn.impute import IterativeImputer
 from sklearn.ensemble import ExtraTreesRegressor
 
 # General Settings
-loaddir = "../../Data/"
-savedir_log = "../../Log/"
+loaddir = Path('Data/').resolve()
+savedir_log = Path('Log/').resolve()
+savedir_meta = Path('Data/meta/').resolve()
 if not os.path.exists(savedir_log):
     os.mkdir(os.getcwd() + savedir_log)
-savedir_meta = "../../Data/meta/"
 if not os.path.exists(savedir_meta):
     os.mkdir(os.path.join(os.getcwd(), savedir_meta))
 
@@ -31,18 +32,18 @@ df_columns = {  'Grid_data' : ['Unnamed: 0', 'demand', 'grid1-load', 'grid1-loss
             }
 
 
-train = pd.read_csv(loaddir + "raw/train.csv", header=0)
+train = pd.read_csv(loaddir.joinpath('raw/train.csv'), header=0)
 
 # %% ---------------------- Grouping data and saving the in Data/processed --------------------- #
 grid_data = train[df_columns['Grid_data']]
 grid_data.rename(columns={'Unnamed: 0': 'timestamp'}, inplace=True)
-grid_data.to_csv(loaddir + 'processed/grid_data.csv')
+grid_data.to_csv(loaddir.joinpath('processed/grid_data.csv'))
 
 prophet = train[df_columns['Prophet']]
-prophet.to_csv(loaddir + 'processed/prophet_data.csv')
+prophet.to_csv(loaddir.joinpath('processed/prophet_data.csv'))
 
 seasonal = train[df_columns['Seasonal']]
-seasonal.to_csv(loaddir + 'processed/seasonal_data.csv')
+seasonal.to_csv(loaddir.joinpath('processed/seasonal_data.csv'))
 
 del prophet, seasonal
 
@@ -54,8 +55,8 @@ print("Columns:           ", train.shape[1])
 # Overview of numerical columns
 # TODO: describe appropirate groups of columns
 grid_data.describe()
-grid_data.describe().T.to_latex(savedir_meta + 'descriptives_raw.tex', float_format='%.2f')
-pd.DataFrame(grid_data.shape[1]*[''], index=grid_data.columns, columns=['Description']).to_latex(savedir_meta + 'features_raw.tex')
+grid_data.describe().T.to_latex(savedir_meta.joinpath('descriptives_raw.tex'), float_format='%.2f')
+pd.DataFrame(grid_data.shape[1]*[''], index=grid_data.columns, columns=['Description']).to_latex(savedir_meta.joinpath('features_raw.tex'))
 
 print("Rows with NaN demand:")
 print(grid_data[grid_data['demand'].isna()], '\n')
