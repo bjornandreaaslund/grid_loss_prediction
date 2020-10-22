@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "grid_loss_prediction"
+version = "0.1.0"
+description = ""
+authors = ["michoy <michaelhoyer@outlook.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+pandas = "^1.1.3"
+seaborn = "^0.11.0"
+numpy = "^1.19.2"
+matplotlib = "^3.3.2"
+sklearn = "^0.0"
+
+[tool.poetry.dev-dependencies]
+pytest = "^5.2"
+pylint = "^2.6.0"
+rope = "^0.18.0"
+
+[build-system]
+requires = ["poetry>=0.12"]
+build-backend = "poetry.masonry.api"
