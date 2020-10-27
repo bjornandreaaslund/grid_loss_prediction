@@ -2,6 +2,7 @@ import os
 import gc
 import datetime as datetime
 from pathlib import Path
+import pickle
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -148,3 +149,10 @@ for col in nancols:
     #else:
     #    print("Imputation will be done with most frequent value for: " + col)
     #    df[col] = pd.DataFrame(np.round(SimpleImputer(missing_values=np.nan,  strategy='most_frequent').fit_transform(df[[col]])[:,0]))
+
+
+
+# %% ------------------------------- Serialize -------------------------------- #
+
+pickle_path = Path('Data/serialized/processed_data_pickle')
+train.to_pickle(pickle_path)
