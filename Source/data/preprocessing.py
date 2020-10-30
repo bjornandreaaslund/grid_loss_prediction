@@ -5,7 +5,7 @@ from pathlib import Path
 import pickle
 import numpy as np
 import pandas as pd
-from sklearn.externals import joblib
+import joblib as joblib
 from itertools import groupby, count
 from sklearn.experimental import enable_iterative_imputer
 from sklearn.impute import IterativeImputer
@@ -13,6 +13,7 @@ from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.preprocessing import RobustScaler
 
 # General Settings
+pd.options.mode.chained_assignment = None
 loaddir = Path('Data/').resolve()
 savedir_log = Path('Log/').resolve()
 savedir_models = Path('Models/').resolve()
@@ -57,7 +58,7 @@ seasonal.to_csv(loaddir.joinpath('processed/seasonal_data.csv'))
 del prophet, seasonal
 
 # %% ---------------------- Data cleaning -------------------------------------#
-print("Data cleaning...")
+print("\nData cleaning...")
 C_to_K = 273
 
 # check that the temerature is between 223 and 323
@@ -87,7 +88,7 @@ train['grid3-loss'].replace(0.0,np.NaN, inplace=True)
 train['grid2-loss'][sensor_error_start:sensor_error_end].replace(train['grid2-loss'][train['grid2-loss'] > 0], np.nan, inplace=True)
 
 # %% ------------------------------- Imputation -------------------------------- #
-print("Imputing missing values...")
+print("\nImputing missing values...")
 
 # columns with nan, which need imputation
 nancols = list(grid_data.columns[grid_data.isna().sum() != 0])
@@ -120,7 +121,7 @@ print("The following columns are correlated with the nancols", corr)
 
 # Features with only correlations with itself
 dropnancols = list(set(nancols) - set([nancol for nancol_strp, nancol, corrcols in zip(nancols_strp, corr.keys(), corr.values()) for col in corrcols if col.startswith(nancol_strp) == False]))
-print("Features with only correlations with itself:", dropnancols)
+print("\nFeatures with only correlations with itself:", dropnancols)
 for col in dropnancols:
     del corr[col]
 gc.collect()
@@ -132,11 +133,11 @@ for col in nancols:
     if (col in corr) and (col == "grid3-loss" or col == "grid3-load"):
         print("Imputation will be done with ExtraTreesRegressor for: " + col)
         imputed_rows += train[col][start_index_grid3:].index[train[col][start_index_grid3:].apply(np.isnan)].to_list()
-        train[col][start_index_grid3:] = pd.Series(IterativeImputer(ExtraTreesRegressor(n_estimators=30, min_samples_split=0.05, n_jobs = -1)).fit_transform(train[corr[col]].iloc[start_index_grid3:,] )[:,0])
+        train[col][start_index_grid3:] = pd.Series(IterativeImputer(ExtraTreesRegressor(n_estimators=30, min_samples_split=0.05, n_jobs = -1)).fit_transform(train[corr[col]].iloc[start_index_grid3:,] )[:,0]).copy(deep=True)
     elif col in corr:
         print("Imputation will be done with ExtraTreesRegressor for: " + col)
         imputed_rows += train[col].index[train[col].apply(np.isnan)].to_list()
-        train[col] = pd.DataFrame(IterativeImputer(ExtraTreesRegressor(n_estimators=30, min_samples_split=0.05, n_jobs = -1)).fit_transform(train[corr[col]])[:,0])
+        train[col] = pd.DataFrame(IterativeImputer(ExtraTreesRegressor(n_estimators=30, min_samples_split=0.05, n_jobs = -1)).fit_transform(train[corr[col]])[:,0]).copy(deep=True)
 
 # visualize which rows which is labeled incorrect, but were not cleaned
 imputed_rows = list(set(imputed_rows))
@@ -149,17 +150,16 @@ def as_range(iterable): # not sure how to do this part elegantly
         return '{0}-{1}'.format(l[0], l[-1])
     else:
         return '{0}'.format(l[0])
-print('Imputed rows')
+print('\nImputed rows')
 print(','.join(as_range(g) for _, g in groupby(imputed_rows, key=lambda n, c=count(): n-next(c))))
-print('Rows with incorrect data')
+print('\nRows with incorrect data')
 print(','.join(as_range(g) for _, g in groupby(incorrect_index, key=lambda n, c=count(): n-next(c))))
 
 # print out the ranges of incorrect data
 index_ranges = ','.join(as_range(g) for _, g in groupby(not_fixed, key=lambda n, c=count(): n-next(c)))
-print("The incorrect data which is not handeled:")
+print("\nThe incorrect data which is not handeled:")
 for index_range in index_ranges.split(','):
     print(index_range)
-print('\n')
 
 # data which will be used in the training
 x_train = train[df_columns['Grid_data'][1:-1] + df_columns['Seasonal']]
@@ -168,7 +168,7 @@ pickle_path = Path('Data/serialized/processed_x_train_pickle')
 x_train.to_pickle(pickle_path)
 
 # %% ------------------------------- Scaling -------------------------------- #
-print('Scaling and desesonalizing...')
+print('\nScaling and desesonalizing...')
 # we use robust scaler since we have some anomalies
 scaler = RobustScaler().fit(x_train)
 scaler_filename = "scaler.save"
@@ -177,7 +177,7 @@ scaler = joblib.load(savedir_models / scaler_filename)
 x_train[x_train.columns] = scaler.transform(x_train)
 
 # %% ------------------------------- Serialize -------------------------------- #
-print('Saving preprocessed data...')
+print('\nSaving preprocessed data...')
 pickle_path = Path('Data/serialized/processed_x_train_scaled_pickle')
 x_train.to_pickle(pickle_path)
 
