@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sb
+from pathlib import Path
 from sklearn.metrics import mean_absolute_error
 from sklearn.metrics import mean_squared_error
 
@@ -18,26 +19,26 @@ def evaluate(y_observed, y_true, y_pred) -> (float, float, float):
     mape = mean_absolute_percentage_error(y_true, y_pred)
 
     # create dataframe that contains all values, where gaps are filled with NaN
-    # NaN values are not plotted by seaborn, which allows us to combine all three
+    # NaN values are not plotted by seaborn, which allows us to combine all 
     # timeseries in one plot
     nan_1 = np.empty(len(y_observed))
     nan_1[:] = np.nan
     nan_2 = np.empty(len(y_pred))
     nan_2[:] = np.nan
 
-    observed_val = np.append(y_observed, nan_2)
-    true_val = np.append(nan_1, y_true)
-    pred_val = np.append(nan_1, y_pred)
+    observed = np.append(y_observed, y_true)
+    predicted = np.append(nan_1, y_pred)
 
     data = pd.DataFrame({
-        'y_observed': observed_val,
-        'y_true': true_val,
-        'y_pred': pred_val
+        'observed': observed,
+        'predicted': predicted
     })
+    save_path = Path('Log/eval_data')
+    data.to_pickle(save_path)
 
     # plot prediction and actual values
     sb.set()
-    sb.lineplot(data=data)
+    sb.lineplot(data=data, dashes=False, palette='colorblind')
     plt.show()
 
     return mae, rmse, mape

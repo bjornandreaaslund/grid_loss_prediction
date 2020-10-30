@@ -12,6 +12,7 @@ numpy = "^1.19.2"
 matplotlib = "^3.3.2"
 sklearn = "^0.0"
 joblib = "^0.17.0"
+statsmodels = "^0.12.1"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
