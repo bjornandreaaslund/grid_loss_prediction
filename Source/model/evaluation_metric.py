@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 import seaborn as sb
 from sklearn.metrics import mean_absolute_error
 from sklearn.metrics import mean_squared_error
-from sklearn.metrics import mean_absolute_percentage_error
 
 # we evaluate on the same metrics used in the paper
 # MAE, RMSE and MAPE
@@ -18,10 +17,8 @@ def evaluate(y_observed, y_true, y_pred) -> (float, float, float):
     rmse = mean_squared_error(y_true, y_pred)
     mape = mean_absolute_percentage_error(y_true, y_pred)
 
-<<<<<<< HEAD
-=======
     # create dataframe that contains all values, where gaps are filled with NaN
-    # NaN values are not plotted by seaborn, which allows us to combine all three 
+    # NaN values are not plotted by seaborn, which allows us to combine all three
     # timeseries in one plot
     nan_1 = np.empty(len(y_observed))
     nan_1[:] = np.nan
@@ -32,7 +29,7 @@ def evaluate(y_observed, y_true, y_pred) -> (float, float, float):
     true_val = np.append(nan_1, y_true)
     pred_val = np.append(nan_1, y_pred)
 
-    data = pd.dataframe({
+    data = pd.DataFrame({
         'y_observed': observed_val,
         'y_true': true_val,
         'y_pred': pred_val
@@ -42,6 +39,9 @@ def evaluate(y_observed, y_true, y_pred) -> (float, float, float):
     sb.set()
     sb.lineplot(data=data)
     plt.show()
-    
->>>>>>> 2f9aaa15dd2095a947ff9732e56de5dad6cc468a
+
     return mae, rmse, mape
+
+def mean_absolute_percentage_error(y_true, y_pred):
+    y_true, y_pred = np.array(y_true), np.array(y_pred)
+    return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
