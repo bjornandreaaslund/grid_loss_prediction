@@ -43,6 +43,7 @@ sensor_error_start = 1079
 sensor_error_end = 2591
 
 train = pd.read_csv(loaddir.joinpath('raw/train.csv'), header=0)
+test = pd.read_csv(loaddir.joinpath('raw/test.csv'), header=0)
 
 # %% ---------------------- Grouping data and saving the in Data/processed --------------------- #
 grid_data = train[df_columns['Grid_data']]
@@ -170,15 +171,26 @@ x_train.to_pickle(pickle_path)
 # %% ------------------------------- Scaling -------------------------------- #
 print('\nScaling and desesonalizing...')
 # we use robust scaler since we have some anomalies
-scaler = RobustScaler().fit(x_train)
-scaler_filename = "scaler.save"
-joblib.dump(scaler, savedir_models / scaler_filename)
-scaler = joblib.load(savedir_models / scaler_filename)
-x_train[x_train.columns] = scaler.transform(x_train)
+scaler_train = RobustScaler().fit(x_train)
+scaler_filename = "scaler_train.save"
+joblib.dump(scaler_train, savedir_models / scaler_filename)
+scaler_train = joblib.load(savedir_models / scaler_filename)
+x_train[x_train.columns] = scaler_train.transform(x_train)
+
+x_test = test[df_columns['Grid_data'][1:-1] + df_columns['Seasonal']]
+
+scaler_test = RobustScaler().fit(x_test)
+scaler_filename = "scaler_test.save"
+joblib.dump(scaler_test, savedir_models / scaler_filename)
+scaler_test = joblib.load(savedir_models / scaler_filename)
+x_test[x_test.columns] = scaler_test.transform(x_test)
 
 # %% ------------------------------- Serialize -------------------------------- #
 print('\nSaving preprocessed data...')
 pickle_path = Path('Data/serialized/processed_x_train_scaled_pickle')
 x_train.to_pickle(pickle_path)
+
+pickle_path = Path('Data/serialized/processed_x_test_scaled_pickle')
+x_test.to_pickle(pickle_path)
 
 print('Preprocessing done!')
