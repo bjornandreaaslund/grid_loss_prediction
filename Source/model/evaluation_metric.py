@@ -15,6 +15,4 @@ def evaluate(y_observed, y_true, y_pred):
     rmse = mean_squared_error(y_true, y_pred)
     mape = mean_absolute_percentage_error(y_true, y_pred)
 
-    # TODO: create plot
-    
     return mae, rmse, mape
