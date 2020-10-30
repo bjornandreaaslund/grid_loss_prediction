@@ -7,9 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
-from sklearn.experimental import enable_iterative_imputer
-from sklearn.impute import IterativeImputer
-from sklearn.ensemble import ExtraTreesRegressor
+from itertools import groupby, count
 
 # General Settings
 loaddir = Path('Data/').resolve()
@@ -32,6 +30,9 @@ df_columns = {  'Grid_data' : ['Unnamed: 0', 'demand', 'grid1-load', 'grid1-loss
                 'Timestamp' : ['Unnamed: 0']
             }
 
+# grid 2 loss has wrong measurements between these indexes, and that value will not be used
+sensor_error_start = 1079
+sensor_error_end = 2591
 
 train = pd.read_csv(loaddir.joinpath('raw/train.csv'), header=0)
 
@@ -65,13 +66,32 @@ print(grid_data[grid_data['demand'].isna()], '\n')
 print("Number of nan values:")
 print(grid_data.isnull().sum(), '\n')
 
+# see the ranges of incorrect data
+print("There are ", train['has incorrect data'].value_counts().iloc[1], " rows with incorrect data\n")
+index_list = np.array(train.index[train['has incorrect data'] == True].tolist())
+
+def as_range(iterable): # not sure how to do this part elegantly
+    l = list(iterable)
+    if len(l) > 1:
+        return '{0}-{1}'.format(l[0], l[-1])
+    else:
+        return '{0}'.format(l[0])
+
+# print out the ranges of incorrect data
+index_ranges = ','.join(as_range(g) for _, g in groupby(index_list, key=lambda n, c=count(): n-next(c)))
+print("The incorrect data is located in these ranges:")
+for index_range in index_ranges.split(','):
+    print(index_range)
+print('\n')
+
+
 # %% ---------------------- Data cleaning -------------------------------------#
 C_to_K = 273
 
 # check that the temerature is between 223 and 323
 for temp in df_columns['Temperature']:
-    print("Number of measurments with temerature above 323 K for " + temp + " :" + str(train[train[temp] > 50+C_to_K].shape[0]))
-    print("Number of measurments with temerature below 223 K for " + temp + " :" + str(train[train[temp] < C_to_K-50].shape[0])+ "\n")
+    print("Number of measurments with temerature above 323 K for " + temp + " :" + str(train[train[temp] > 40+C_to_K].shape[0]))
+    print("Number of measurments with temerature below 223 K for " + temp + " :" + str(train[train[temp] < C_to_K-40].shape[0])+ "\n")
 
 # check that all the timestamp has an interval of one hour
 check = True
@@ -85,6 +105,7 @@ result = 'All timestamps have an intervall of one hour' if check else 'All times
 print(result)
 
 # %% ---------------------- Visualize data -------------------------------------#
+train = train.set_index('Unnamed: 0')
 
 def evaluate_seasonaldata():
     for col in df_columns['Seasonal']:
@@ -101,58 +122,33 @@ def print_corr_matrix():
     plt.savefig(savedir_log+"corr_matrix")
     plt.show()
 
-# %% ------------------------------- Imputation -------------------------------- #
+def plot_wrong_sensordata():
+    plt.plot(grid_data['grid2-loss'])
+    plt.title('Wrong measurement for grid2 loss')
+    plt.xlim(sensor_error_start-100, sensor_error_end+100)
+    plt.savefig(savedir_log+'wrong_measurement_grid2_loss')
+    plt.show()
 
+def plot_temperature():
+    plt.plot(train[df_columns['Temperature']])
+    plt.title('The temperature for each of the grids.')
+    plt.xlabel('Time')
+    plt.ylabel('Temperature [K]')
+    plt.savefig(savedir_log+'temperature')
+    plt.show()
 
-# columns with nan, which need imputation
-nancols = list(grid_data.columns[grid_data.isna().sum() != 0])
-nancols0 = ['demand', 'grid1-loss', 'grid1-temp', 'grid2-loss', 'grid2_1-temp', 'grid2_2-temp', 'grid3-load', 'grid3-loss', 'grid3-temp']
-nancols_strp = [col for col in nancols0 for nancol in nancols if nancol.startswith(col)]
-nancols_bin = {col:train[col].dropna().isin([0,1]).all() for col in nancols}
+def plot_loss():
+    plt.plot(train[['grid1-loss', 'grid2-loss', 'grid2-loss']])
+    plt.title('The loss from each grid.')
+    plt.xlabel('Time')
+    plt.ylabel('Energy [MWh]')
+    plt.savefig(savedir_log+'loss')
+    plt.show()
 
-t = 0.6
-
-# Create dictionary corr with for each nancol corresponding features with correlation higher than threshold t
-# TODO: determine wich columns to impute
-corr = {}
-for nancol in nancols:
-    corr.update({nancol : pd.DataFrame(columns=['c'])})
-    for col in df_columns['Grid_data'][1:-1] + df_columns['Seasonal']:
-        corr[nancol].loc[col, 'c'] = np.abs(train[nancol].corr(train[col]))
-    corrcol = list(corr[nancol][corr[nancol].c > t].index)
-    if len(corrcol) > 1:
-        print(list(set(corrcol) - set(nancol)))
-        corrcol = [nancol] + list(set(corrcol) - {nancol}) #bring nancol to front
-        corr.update({nancol:corrcol})
-    else:
-        print("Feature with not enough correlations:", nancol)
-        alt_corrcol = list(corr[nancol].c.sort_values()[-3:].index)
-        alt_corrcol = [nancol] + list(set(alt_corrcol) - {nancol}) #bring nancol to front
-        corr.update({nancol:alt_corrcol})
-
-print("The following columns are correlated with the nancols", corr)
-
-# Features with only correlations with itself
-dropnancols = list(set(nancols) - set([nancol for nancol_strp, nancol, corrcols in zip(nancols_strp, corr.keys(), corr.values()) for col in corrcols if col.startswith(nancol_strp) == False]))
-print("Features with only correlations with itself:", dropnancols)
-for col in dropnancols:
-    del corr[col]
-gc.collect()
-
-# imputation
-for col in nancols:
-    #plt.figure()
-    #df[col].hist()
-    if col in corr:
-        print("Imputation will be done with ExtraTreesRegressor for: " + col)
-        train[col] = pd.DataFrame(np.round(IterativeImputer(ExtraTreesRegressor(n_estimators=30, min_samples_split=0.05, n_jobs = -1)).fit_transform(train[corr[col]])[:,0]))
-    #else:
-    #    print("Imputation will be done with most frequent value for: " + col)
-    #    df[col] = pd.DataFrame(np.round(SimpleImputer(missing_values=np.nan,  strategy='most_frequent').fit_transform(df[[col]])[:,0]))
-
-
-
-# %% ------------------------------- Serialize -------------------------------- #
-
-pickle_path = Path('Data/serialized/processed_data_pickle')
-train.to_pickle(pickle_path)
+def plot_load():
+    plt.plot(train[['grid1-load', 'grid2-load', 'grid2-load']])
+    plt.title('The load from each grid.')
+    plt.xlabel('Time')
+    plt.ylabel('Energy [MWh]')
+    plt.savefig(savedir_log+'load')
+    plt.show()
