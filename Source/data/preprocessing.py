@@ -85,7 +85,7 @@ zero_loss = zero_loss.to_list()
 train['grid3-loss'].replace(0.0,np.NaN, inplace=True)
 
 # remove wrong measurement from grid2-loss
-train['grid2-loss'][sensor_error_start:sensor_error_end].replace(train['grid2-loss'][train['grid2-loss'] > 0], np.nan, inplace=True)
+train['grid2-loss'][sensor_error_start:sensor_error_end] = np.nan
 
 # %% ------------------------------- Imputation -------------------------------- #
 print("\nImputing missing values...")
