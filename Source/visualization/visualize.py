@@ -8,4 +8,7 @@ import seaborn as sns
 pickle_path = Path('Data/serialized/processed_data_pickle')
 train = pd.read_pickle(pickle_path)
 
-print(train.describe())
+loss = train['grid1-loss']
+print(loss.describe())
+
+sns.lineplot(loss)
