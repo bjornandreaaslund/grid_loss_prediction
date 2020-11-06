@@ -171,8 +171,9 @@ x_train.to_pickle(pickle_path)
 # %% ------------------------------- Scaling -------------------------------- #
 print('\nScaling and desesonalizing...')
 # we use robust scaler since we have some anomalies
+
 scaler_train = RobustScaler().fit(x_train)
-scaler_filename = "scaler_train.save"
+scaler_filename = "scaler_train.sav"
 joblib.dump(scaler_train, savedir_models / scaler_filename)
 scaler_train = joblib.load(savedir_models / scaler_filename)
 x_train[x_train.columns] = scaler_train.transform(x_train)
@@ -180,16 +181,29 @@ x_train[x_train.columns] = scaler_train.transform(x_train)
 x_test = test[df_columns['Grid_data'][1:-1] + df_columns['Seasonal']]
 
 scaler_test = RobustScaler().fit(x_test)
-scaler_filename = "scaler_test.save"
+scaler_filename = "scaler_test.sav"
 joblib.dump(scaler_test, savedir_models / scaler_filename)
 scaler_test = joblib.load(savedir_models / scaler_filename)
-x_test[x_test.columns] = scaler_test.transform(x_test)
+
+# sclaer for transforming back the values
+scaler_1 = RobustScaler().fit(x_test["grid1-loss"].values.reshape(-1, 1))
+scaler_grid1 = "scaler_grid1.sav"
+joblib.dump(scaler_1, savedir_models / scaler_grid1)
+
+scaler_2 = RobustScaler().fit(x_test["grid2-loss"].values.reshape(-1, 1))
+scaler_grid2 = "scaler_grid2.sav"
+joblib.dump(scaler_2, savedir_models / scaler_grid2)
+
+scaler_3 = RobustScaler().fit(x_test["grid3-loss"].values.reshape(-1, 1))
+scaler_grid3 = "scaler_grid3.sav"
+joblib.dump(scaler_3, savedir_models / scaler_grid3)
 
 # %% ------------------------------- Serialize -------------------------------- #
 print('\nSaving preprocessed data...')
 pickle_path = Path('Data/serialized/processed_x_train_scaled_pickle')
 x_train.to_pickle(pickle_path)
 
+x_test[x_test.columns] = scaler_test.transform(x_test)
 pickle_path = Path('Data/serialized/processed_x_test_scaled_pickle')
 x_test.to_pickle(pickle_path)
 
