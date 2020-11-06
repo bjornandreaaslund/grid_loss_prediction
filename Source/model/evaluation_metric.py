@@ -1,3 +1,4 @@
+from typing import Tuple
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -8,7 +9,7 @@ from sklearn.metrics import mean_squared_error
 
 # we evaluate on the same metrics used in the paper
 # MAE, RMSE and MAPE
-def evaluate(y_observed, y_true, y_pred) -> (float, float, float):
+def evaluate(y_observed, y_true, y_pred) -> Tuple[float, float, float]:
     """
     y_true: array-like of shape
     y_pred: array-like of shape
