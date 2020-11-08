@@ -1,10 +1,24 @@
+'''
+Contents:
+
+- Imports
+- General settings
+- Read data
+- Feature importance
+- Hyperparameter optimization
+- Forecasting
+- Evaluation
+
+'''
+
+# %% --------------------------------- Imports --------------------------------- #
+
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import joblib as joblib
 import matplotlib.pyplot as plt
 from pathlib import Path
-from statsmodels.tsa.api import VAR
 from evaluation_metric import evaluate, mean_absolute_percentage_error
 from sklearn.feature_selection import SelectFromModel
 from tqdm import tqdm
@@ -13,55 +27,64 @@ from hyperopt import hp, tpe, fmin
 from hyperopt import Trials
 from hyperopt import STATUS_OK
 from sklearn.model_selection import cross_val_score
+from sklearn.metrics import make_scorer
 from sklearn.preprocessing import RobustScaler
 from sklearn.model_selection import TimeSeriesSplit
+
+# %% ----------------------- General settings ----------------------- #
 
 savedir_models = Path('Models/').resolve()
 loaddir = Path('Data/').resolve()
 nobs = 144 # 6 days
-lookback_window = 24*180 # 90 days
+lookback_window = 24*90 # 90 days
+grid_number = 1 # select which grid to predict : 0 -> grid1, 1 -> grid2, 2 -> grid3
 columns_to_predict = ['grid1-loss', 'grid2-loss', 'grid3-loss']
+target_col = columns_to_predict[grid_number] # select which column to predict
+MAPE = make_scorer(mean_absolute_percentage_error, greater_is_better=False)
 
-# %% ------------------------------- Read data ------------------------------- #
+# %% ----------------------- Read data ----------------------- #
 
-pickle_path = Path('Data/serialized/processed_x_train_scaled_pickle').resolve()
-train = pd.read_pickle(pickle_path)
-train = train.dropna()
+# x-values
+pickle_path = Path('Data/serialized/x_train_with_lag').resolve()
+X_train = pd.read_pickle(pickle_path)
+pickle_path = Path('Data/serialized/x_test_with_lag').resolve()
+X_test = pd.read_pickle(pickle_path)
 
-pickle_path = Path('Data/serialized/processed_x_test_scaled_pickle').resolve()
-test = pd.read_pickle(pickle_path)
+#y-values
+pickle_path = Path('Data/serialized/y_train_grid1').resolve()
+y_train_grid1 = pd.read_pickle(pickle_path)
+pickle_path = Path('Data/serialized/y_test_grid1').resolve()
+y_test_grid1 = pd.read_pickle(pickle_path)
+pickle_path = Path('Data/serialized/y_train_grid2').resolve()
+y_train_grid2 = pd.read_pickle(pickle_path)
+pickle_path = Path('Data/serialized/y_test_grid2').resolve()
+y_test_grid2 = pd.read_pickle(pickle_path)
+pickle_path = Path('Data/serialized/y_train_grid3').resolve()
+y_train_grid3 = pd.read_pickle(pickle_path)
+pickle_path = Path('Data/serialized/y_test_grid3').resolve()
+y_test_grid3 = pd.read_pickle(pickle_path)
 
+# creates dataframes for evaluation
 observed = pd.read_csv(loaddir.joinpath('raw/train.csv'), header=0)
 test_true = pd.read_csv(loaddir.joinpath('raw/test.csv'), header=0)
+y_true = test_true[columns_to_predict]
+y_observed = observed[columns_to_predict][10000:]
 
-X_train = train.tail(train.shape[0]-nobs).drop(['grid1-load', 'grid1-loss', 'grid1-temp', 'grid3-load', 'grid3-loss', 'grid3-temp'], axis=1)
-y_train = train['grid2-loss'].shift(nobs).dropna()
-
-frames = [train.tail(lookback_window+nobs), test]
-df_test = pd.concat(frames)
-
-X_test = pd.concat(frames).head(test.shape[0]).drop(['grid1-load', 'grid1-loss', 'grid1-temp', 'grid3-load', 'grid3-loss', 'grid3-temp'], axis=1)
-y_test = test['grid2-loss']
-
-y_true = np.array(test_true['grid2-loss'])
-y_observed = np.array(observed['grid2-loss'][10000:])
-
+# scalers for inverse transform after predicting
 scaler_grid1 = joblib.load(savedir_models / 'scaler_grid1.sav')
 scaler_grid2 = joblib.load(savedir_models / 'scaler_grid2.sav')
 scaler_grid3 = joblib.load(savedir_models / 'scaler_grid3.sav')
 
-# %% ------------------------------- XGBoost ------------------------------- #
-model_name = "XGBoost_reg"
+y_train = [y_train_grid1, y_train_grid2, y_train_grid3][grid_number] # select the y_train for the selected grid
+y_test = [y_test_grid1, y_test_grid2, y_test_grid3][grid_number]
+scaler = [scaler_grid1, scaler_grid2, scaler_grid3][grid_number] # select the scaler for the selected grid
 
-xg_reg = xgb.XGBRegressor(objective ='reg:squarederror', colsample_bytree = 0.4, learning_rate = 0.22,
-                max_depth = 11, alpha = 10, n_estimators = 10)
+# %% ------------------------------- Feature importance ------------------------------- #
+print("\nFeature importance...")
 
+xg_reg = xgb.XGBRegressor(objective ='reg:squarederror', colsample_bytree= 0.97, gamma= 0.23, learning_rate= 0.05, max_depth= 24, min_child_weight= 7.0, n_estimators= 190, subsample= 0.31, verbosity = 0)
 xg_reg.fit(X_train, y_train)
 
-filename = 'XGBoost_reg.sav'
-joblib.dump(xg_reg, filename)
-
-# %% ------------------------------- XGBoost feature importance ------------------------------- #
 xgb.plot_importance(xg_reg, max_num_features=25)
 plt.show()
 
@@ -77,14 +100,14 @@ for i in range(0, len(thresholds), 1):
     # train model
     selection_model = xgb.XGBRegressor(objective ='reg:squarederror', colsample_bytree = 0.4, learning_rate = 0.22,
                 max_depth = 11, alpha = 10, n_estimators = 20, verbosity = 0)
-    selection_model.fit(select_X_train, y_train)
+    selection_model.fit(select_X_train, y_train_grid1)
     # eval model
     select_X_test = selection.transform(X_test)
     y_pred = selection_model.predict(select_X_test)
 
-    y_pred = scaler_grid2.inverse_transform(pd.DataFrame(y_pred).values.reshape(-1, 1))
-
-    accuracy = mean_absolute_percentage_error(y_pred, y_test)
+    y_pred = scaler.inverse_transform(pd.DataFrame(y_pred).values.reshape(-1, 1))
+    y_test_selected = scaler.inverse_transform(pd.DataFrame(y_test_grid1).values.reshape(-1, 1))
+    accuracy = mean_absolute_percentage_error(y_pred, np.array(y_test_selected))
     scores.append(accuracy)
     n.append(i)
     print("Thresh=%.5f, n=%d, MAPE: %.5f" % (thresholds[i], select_X_train.shape[1], accuracy))
@@ -92,7 +115,7 @@ for i in range(0, len(thresholds), 1):
 # Plots the MAPE score for the different number of features
 plt.scatter(n, scores)
 plt.xlabel('Number of features')
-plt.ylabel('Error')
+plt.ylabel('MAPE')
 plt.show()
 
 # use the best threshold
@@ -100,26 +123,24 @@ plt.show()
 best_thres = 0.00084
 selection = SelectFromModel(xg_reg, threshold=best_thres, prefit=True)
 feature_idx = selection.get_support()
-feature_idx
-X_train_xgb_fs = X_train[X_train.columns[feature_idx]]
-X_test_xgb_fs = X_test[X_train.columns[feature_idx]]
+X_train_fs = X_train[X_train.columns[feature_idx]]
+X_test_fs = X_test[X_train.columns[feature_idx]]
 
 # creates a model with the best features
 model_name = "XGBoost after feature selection"
 xg_reg = xgb.XGBRegressor(objective ='reg:squarederror', colsample_bytree= 0.97, gamma= 0.23, learning_rate= 0.05, max_depth= 24, min_child_weight= 7.0, n_estimators= 190, subsample= 0.31, verbosity = 0)
-xg_reg.fit(X_train, y_train)
-
-filename = 'XGBoost_reg_fs.sav'
-joblib.dump(xg_reg, filename)
-#xg_reg = joblib.load(filename)
-y_pred = xg_reg.predict(X_test)
-
+xg_reg.fit(X_train_fs, y_train)
+y_pred = xg_reg.predict(X_test_fs)
 # scaling back to original scaling
-y_pred = scaler_grid2.inverse_transform(pd.DataFrame(y_pred).values.reshape(-1, 1))
+y_pred = scaler.inverse_transform(pd.DataFrame(y_pred).values.reshape(-1, 1))
 # train on the training data, and predicts all values in the test data
-evaluate(y_observed, y_true, y_pred)
-
-# %% ------------------------------- XGBoost hyperparameter optimization ------------------------------- #
+mae, rmse, mape = evaluate(np.array(y_observed[target_col]), np.array(y_true[target_col]), y_pred)
+print("The whole test set predicted from the best features.")
+print("MAE:", mae)
+print("RMSE:", rmse)
+print("MAPE:", mape)
+# %% ------------------------------- Hyperparameter optimization ------------------------------- #
+print("\nHyperparameter optimization")
 #Bayesian optimazation
 #This optimization runs for a while
 #https://towardsdatascience.com/an-introductory-example-of-bayesian-optimization-in-python-with-hyperopt-aae40fff4ff0
@@ -145,12 +166,12 @@ def objective(space):
 
     time_split = TimeSeriesSplit(n_splits=10)
     # Applying k-Fold Cross Validation
-    accuracies = cross_val_score(estimator = xg_reg, X = X_train_xgb_fs, y = y_train, cv = time_split, scoring ='neg_mean_squared_error' )
+    accuracies = cross_val_score(estimator = xg_reg, X = X_train_fs, y = y_train, cv = time_split, scoring = MAPE ) # important to use MAPE here since some of the grids change dramatically over time
     CrossValMean = accuracies.mean()
 
-    print("CrossValMean:", -CrossValMean)
+    print("CrossVal mean of MAPE:", -CrossValMean)
 
-    return{'loss':-CrossValMean, 'params': space, 'status': STATUS_OK }
+    return{'loss': -CrossValMean, 'params': space, 'status': STATUS_OK }
 
 # define the space that we want to search
 # since we do not have any prior knowledge they are all uniform or choice
@@ -229,52 +250,43 @@ xg_reg = xgb.XGBRegressor(orobjective ='reg:squarederror',
                             colsample_bytree = best_params['colsample_bytree']
                             )
 
-xg_reg.fit(X_train_xgb_fs, y_train)
-
-filename = 'XGBoost_reg_best.sav'
-joblib.dump(xg_reg, filename)
-#xg_reg = joblib.load(filename)
-
 # %% ------------------------------- Forecast ------------------------------- #
+print("\nForecast...")
 # we will forecast 6 days ahead, and fit the model on all available data up to this point
-frames = [train.tail(lookback_window+nobs), test]
-df_test = pd.concat(frames).drop(['grid1-load', 'grid1-loss', 'grid1-temp', 'grid3-load', 'grid3-loss', 'grid3-temp'], axis=1)
+x_forecast = pd.concat([X_train.tail(lookback_window+nobs), X_test])
+
+y_forecast = pd.concat([y_train.tail(lookback_window+nobs), y_test])
 
 pred = []
-y_test = df_test['grid2-loss'].shift(nobs).dropna()
 
-for i in tqdm(range(test.shape[0])):
+for i in tqdm(range(X_test.shape[0])):
     # fit new model on the sliding window
     # the model does not handle conastant values so we can not use binary variable
     # if they are constant in the forecast window
     # important to have the sesonal time series, but check that they are not constant
-    forecast_df = df_test.iloc[i:lookback_window+i]
-    forecast_input = np.array(forecast_df)
-    y_forecast = np.array(y_test.iloc[i:lookback_window+i])
-    """
-    xg_reg = xgb.XGBRegressor(orobjective ='reg:squarederror',
-                                n_estimators = best_params['n_estimators'],
-                                max_depth = int(best_params['max_depth']),
-                                learning_rate = best_params['learning_rate'],
-                                gamma = best_params['gamma'],
-                                min_child_weight = best_params['min_child_weight'],
-                                subsample = best_params['subsample'],
-                                colsample_bytree = best_params['colsample_bytree']
-                                )
-    """
-    # trains one model each day
-    if (i % 24 == 0):
-        xg_reg = xgb.XGBRegressor(objective ='reg:squarederror', colsample_bytree= 0.97, gamma= 0.23, learning_rate= 0.05, max_depth= 24, min_child_weight= 7.0, n_estimators= 30, subsample= 0.31, verbosity = 0)
-        xg_reg.fit(forecast_input, y_forecast)
+    x_forecast_slice = np.array(x_forecast.iloc[i:lookback_window+i])
+    y_forecast_slice = np.array(y_forecast.iloc[i:lookback_window+i])
+
+    if (i%24 == 0):
+        xg_reg = xgb.XGBRegressor(orobjective ='reg:squarederror',
+                                    n_estimators = best_params['n_estimators'],
+                                    max_depth = int(best_params['max_depth']),
+                                    learning_rate = best_params['learning_rate'],
+                                    gamma = best_params['gamma'],
+                                    min_child_weight = best_params['min_child_weight'],
+                                    subsample = best_params['subsample'],
+                                    colsample_bytree = best_params['colsample_bytree']
+                                    )
+        # trains one model each day
+        xg_reg.fit(x_forecast_slice, y_forecast_slice)
 
     pred_value = xg_reg.predict([X_test.iloc[i, :].values])
     pred.append(pred_value)
 
-#print(pred)
 # %% ------------------------------- Evaluate ------------------------------- #
-
-y_pred = scaler_grid2.inverse_transform(np.array(pred).reshape(-1, 1))
-mae, rmse, mape = evaluate(y_observed, y_true, y_pred)
+print("\nEvaluate...")
+y_pred = scaler.inverse_transform(np.array(pred).reshape(-1, 1))
+mae, rmse, mape = evaluate(np.array(y_observed[target_col]), np.array(y_true[target_col]), np.array(y_pred))
 print("MAE:", mae)
 print("RMSE:", rmse)
 print("MAPE:", mape)

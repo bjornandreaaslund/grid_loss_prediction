@@ -1,3 +1,17 @@
+'''
+Contents:
+
+- Imports
+- General settings
+- Read data
+- Vector Autoregressive
+- Forecasting
+- Evaluation
+
+'''
+
+# %% --------------------------------- Imports --------------------------------- #
+
 import numpy as np
 import pandas as pd
 import joblib as joblib
@@ -5,6 +19,7 @@ from pathlib import Path
 from statsmodels.tsa.api import VAR
 from evaluation_metric import evaluate
 from tqdm import tqdm
+
 
 savedir_models = Path('Models/').resolve()
 loaddir = Path('Data/').resolve()

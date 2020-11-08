@@ -1,3 +1,20 @@
+'''
+Contents:
+
+- Imports
+- Read data and general settings
+- Grouping data and saving the in Data/processed
+- Data cleaning
+- Imputation
+- Shifting data
+- Creating lag features
+- Scaling
+- Data Export
+
+'''
+
+# %% --------------------------------- Imports --------------------------------- #
+
 import os
 import gc
 import datetime as datetime
@@ -23,6 +40,8 @@ if not os.path.exists(savedir_log):
 if not os.path.exists(savedir_meta):
     os.mkdir(os.path.join(os.getcwd(), savedir_meta))
 
+# %% --------------------- Read data and general settings ---------------------------- #
+
 df_columns = {  'Grid_data' : ['Unnamed: 0', 'demand', 'grid1-load', 'grid1-loss','grid1-temp', 'grid2-load', 'grid2-loss','grid2_1-temp',
                                 'grid2_2-temp', 'grid3-load', 'grid3-loss', 'grid3-temp', 'has incorrect data'],
                 'Prophet' : ['grid1-loss-prophet-daily', 'grid1-loss-prophet-pred', 'grid1-loss-prophet-trend', 'grid1-loss-prophet-weekly',
@@ -41,6 +60,9 @@ start_index_grid3 = 6622
 # grid 2 loss has wrong measurements between these indexes, and that value will not be used
 sensor_error_start = 1079
 sensor_error_end = 2591
+
+# days ahead to forecast
+forecast_window = 6*24
 
 train = pd.read_csv(loaddir.joinpath('raw/train.csv'), header=0)
 test = pd.read_csv(loaddir.joinpath('raw/test.csv'), header=0)
@@ -162,15 +184,17 @@ print("\nThe incorrect data which is not handeled:")
 for index_range in index_ranges.split(','):
     print(index_range)
 
-# data which will be used in the training
+# data which will be used in the training and testing
 x_train = train[df_columns['Grid_data'][1:-1] + df_columns['Seasonal']]
+x_test = test[df_columns['Grid_data'][1:-1] + df_columns['Seasonal']]
 
 pickle_path = Path('Data/serialized/processed_x_train_pickle')
 x_train.to_pickle(pickle_path)
 
 # %% ------------------------------- Scaling -------------------------------- #
-print('\nScaling and desesonalizing...')
 # we use robust scaler since we have some anomalies
+# saves the scalers for transforming back after predicting
+print('\nScaling and desesonalizing...')
 
 scaler_train = RobustScaler().fit(x_train)
 scaler_filename = "scaler_train.sav"
@@ -178,14 +202,12 @@ joblib.dump(scaler_train, savedir_models / scaler_filename)
 scaler_train = joblib.load(savedir_models / scaler_filename)
 x_train[x_train.columns] = scaler_train.transform(x_train)
 
-x_test = test[df_columns['Grid_data'][1:-1] + df_columns['Seasonal']]
-
 scaler_test = RobustScaler().fit(x_test)
 scaler_filename = "scaler_test.sav"
 joblib.dump(scaler_test, savedir_models / scaler_filename)
 scaler_test = joblib.load(savedir_models / scaler_filename)
 
-# sclaer for transforming back the values
+# creates scalers for scaling back predictions for each of the grids
 scaler_1 = RobustScaler().fit(x_test["grid1-loss"].values.reshape(-1, 1))
 scaler_grid1 = "scaler_grid1.sav"
 joblib.dump(scaler_1, savedir_models / scaler_grid1)
@@ -198,13 +220,93 @@ scaler_3 = RobustScaler().fit(x_test["grid3-loss"].values.reshape(-1, 1))
 scaler_grid3 = "scaler_grid3.sav"
 joblib.dump(scaler_3, savedir_models / scaler_grid3)
 
-# %% ------------------------------- Serialize -------------------------------- #
-print('\nSaving preprocessed data...')
-pickle_path = Path('Data/serialized/processed_x_train_scaled_pickle')
-x_train.to_pickle(pickle_path)
-
 x_test[x_test.columns] = scaler_test.transform(x_test)
-pickle_path = Path('Data/serialized/processed_x_test_scaled_pickle')
+
+# %% ------------------------ Creating lag features -------------------------- #
+# create lag features for models which does not have a natural definition of time
+print("\nCreating lag features...")
+lag_variables  = ['demand', 'grid1-load', 'grid1-loss','grid1-temp', 'grid2-load', 'grid2-loss','grid2_1-temp',
+                                'grid2_2-temp', 'grid3-load', 'grid3-loss', 'grid3-temp']
+lags = [1 ,2 ,3 ,4, 5, 6]
+# we will keep the results in this dataframe
+data = pd.concat([x_train, x_test])
+data_with_lag = data.copy()
+for lag in lags:
+    for var in lag_variables:
+        data_with_lag[var+str(lag)] = data_with_lag[var].shift(lag*24)
+data_with_lag = data_with_lag.dropna()
+
+# %% ---------------------------- Shifting data ----------------------------- #
+# to predict loss for day d we use seasonal data for day d, weather data for day d
+# and demand, load and loss data for day d-6.
+print("\nShifting data...")
+
+
+data[df_columns['Seasonal']] = data[df_columns['Seasonal']].shift(forecast_window)
+data[df_columns['Temperature']] = data[df_columns['Temperature']].shift(forecast_window)
+data = data.dropna()
+
+data_with_lag[df_columns['Seasonal']] = data_with_lag[df_columns['Seasonal']].shift(forecast_window)
+data_with_lag[df_columns['Temperature']] = data_with_lag[df_columns['Temperature']].shift(forecast_window)
+data_with_lag = data_with_lag.dropna()
+
+# %% ---------------------------- Data Export ----------------------------- #
+# saves two set of x and y, one with lag and one without
+print('\nExporting data...')
+#create y-values -> the loss 6 days ahead for each grid
+y_grid1 = data['grid1-loss'].shift(-forecast_window).dropna()
+y_grid2 = data['grid2-loss'].shift(-forecast_window).dropna()
+y_grid3 = data['grid3-loss'].shift(-forecast_window).dropna()
+
+# this reduces the x-data since we do not have any targets for the last 6 days
+data = data.head(data.shape[0]-forecast_window)
+data_with_lag = data_with_lag.head(data.shape[0]-forecast_window)
+
+# splitting back to train and test, we let the test set have the original number of examples
+x_train = data.head(data.shape[0] - test.shape[0])
+x_test = data.tail(test.shape[0])
+
+x_train_with_lag = data_with_lag.head(data.shape[0] - test.shape[0])
+x_test_with_lag = data_with_lag.tail(test.shape[0])
+
+# splitting y-values in train and test
+y_train_grid1 = y_grid1.head(y_grid1.shape[0] - test.shape[0])
+y_test_grid1 = y_grid1.tail(test.shape[0])
+y_train_grid2 = y_grid2.head(y_grid2.shape[0] - test.shape[0])
+y_test_grid2 = y_grid2.tail(test.shape[0])
+y_train_grid3 = y_grid3.head(y_grid3.shape[0] - test.shape[0])
+y_test_grid3 = y_grid3.tail(test.shape[0])
+
+#check that x and y have the same number of examples
+assert x_train.shape[0] == y_train_grid1.shape[0]
+assert x_test.shape[0] == y_test_grid1.shape[0]
+assert x_train['grid1-loss'].iloc[forecast_window] == y_train_grid1.iloc[0]
+
+# x-values
+pickle_path = Path('Data/serialized/x_train')
+x_train.to_pickle(pickle_path)
+pickle_path = Path('Data/serialized/x_test')
 x_test.to_pickle(pickle_path)
+
+pickle_path = Path('Data/serialized/x_train_with_lag')
+x_train_with_lag.to_pickle(pickle_path)
+pickle_path = Path('Data/serialized/x_test_with_lag')
+x_test_with_lag.to_pickle(pickle_path)
+
+# y_values
+pickle_path = Path('Data/serialized/y_train_grid1')
+y_train_grid1.to_pickle(pickle_path)
+pickle_path = Path('Data/serialized/y_test_grid1')
+y_test_grid1.to_pickle(pickle_path)
+
+pickle_path = Path('Data/serialized/y_train_grid2')
+y_train_grid2.to_pickle(pickle_path)
+pickle_path = Path('Data/serialized/y_test_grid2')
+y_test_grid2.to_pickle(pickle_path)
+
+pickle_path = Path('Data/serialized/y_train_grid3')
+y_train_grid3.to_pickle(pickle_path)
+pickle_path = Path('Data/serialized/y_test_grid3')
+y_test_grid3.to_pickle(pickle_path)
 
 print('Preprocessing done!')

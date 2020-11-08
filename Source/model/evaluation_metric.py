@@ -20,7 +20,7 @@ def evaluate(y_observed, y_true, y_pred) -> Tuple[float, float, float]:
     mape = mean_absolute_percentage_error(y_true, y_pred)
 
     # create dataframe that contains all values, where gaps are filled with NaN
-    # NaN values are not plotted by seaborn, which allows us to combine all 
+    # NaN values are not plotted by seaborn, which allows us to combine all
     # timeseries in one plot
     nan_1 = np.empty(len(y_observed))
     nan_1[:] = np.nan
