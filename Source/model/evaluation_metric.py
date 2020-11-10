@@ -18,6 +18,7 @@ def evaluate(y_observed, y_true, y_pred) -> Tuple[float, float, float]:
     mae = mean_absolute_error(y_true, y_pred)
     rmse = mean_squared_error(y_true, y_pred)
     mape = mean_absolute_percentage_error(y_true, y_pred)
+    smape = symmetric_mean_absolute_percentage_error(y_true, y_pred)
 
     # create dataframe that contains all values, where gaps are filled with NaN
     # NaN values are not plotted by seaborn, which allows us to combine all
@@ -42,8 +43,12 @@ def evaluate(y_observed, y_true, y_pred) -> Tuple[float, float, float]:
     sb.lineplot(data=data, dashes=False, palette='colorblind')
     plt.show()
 
-    return mae, rmse, mape
+    return mae, rmse, mape, smape
 
 def mean_absolute_percentage_error(y_true, y_pred):
     y_true, y_pred = np.array(y_true), np.array(y_pred)
     return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
+
+def symmetric_mean_absolute_percentage_error(y_true, y_pred):
+    y_true, y_pred = np.array(y_true), np.array(y_pred)
+    return np.mean(np.abs(y_true - y_pred) / (np.abs(y_true) + np.abs(y_pred)))*200

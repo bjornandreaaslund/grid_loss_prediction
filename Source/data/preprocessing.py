@@ -59,7 +59,7 @@ start_index_grid3 = 6622
 
 # grid 2 loss has wrong measurements between these indexes, and that value will not be used
 sensor_error_start = 1079
-sensor_error_end = 2591
+sensor_error_end = 2592
 
 # days ahead to forecast
 forecast_window = 6*24
@@ -281,6 +281,7 @@ y_test_grid3 = y_grid3.tail(test.shape[0])
 assert x_train.shape[0] == y_train_grid1.shape[0]
 assert x_test.shape[0] == y_test_grid1.shape[0]
 assert x_train['grid1-loss'].iloc[forecast_window] == y_train_grid1.iloc[0]
+assert x_test['grid1-loss'].iloc[forecast_window] == y_test_grid1.iloc[0]
 
 # x-values
 pickle_path = Path('Data/serialized/x_train')
