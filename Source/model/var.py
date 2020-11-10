@@ -17,7 +17,7 @@ import pandas as pd
 import joblib as joblib
 from pathlib import Path
 from statsmodels.tsa.api import VAR
-from evaluation_metric import evaluate
+from evaluation_metric import evaluate, evaluate_all
 from tqdm import tqdm
 
 
@@ -83,24 +83,30 @@ for i in tqdm(range(test.shape[0])):
 
 # %% ------------------------------- Evaluate ------------------------------- #
 
-for col in pred.columns:
-    y_pred = np.array(pred[col])
-    y_true = np.array(test_true[col])
-    y_observed = np.array(observed[col][10000:])
-    mae, rmse, mape, smape = evaluate(y_observed, y_true, y_pred)
-    print(col)
-    print("MAE:", mae)
-    print("RMSE:", rmse)
-    print("MAPE:", mape)
-    print("SMAPE", smape)
 
-# Evaluate sum
-y_pred = np.array(pred.sum(axis=1))
-y_true = np.array(test_true[columns_to_predict].sum(axis=1))
-y_observed = np.array(observed[columns_to_predict].sum(axis=1)[10000:])
-mae, rmse, mape, smape = evaluate(y_observed, y_true, y_pred)
-print("Total")
-print("MAE:", mae)
-print("RMSE:", rmse)
-print("MAPE:", mape)
-print("SMAPE", smape)
+y_true = test_true[pred.columns]
+y_pred = pred
+
+evaluate_all(y_true, y_pred)
+
+# for col in pred.columns:
+#     y_pred = np.array(pred[col])
+#     y_true = np.array(test_true[col])
+#     y_observed = np.array(observed[col][10000:])
+#     mae, rmse, mape, smape = evaluate(y_observed, y_true, y_pred)
+#     print(col)
+#     print("MAE:", mae)
+#     print("RMSE:", rmse)
+#     print("MAPE:", mape)
+#     print("SMAPE", smape)
+
+# # Evaluate sum
+# y_pred = np.array(pred.sum(axis=1))
+# y_true = np.array(test_true[columns_to_predict].sum(axis=1))
+# y_observed = np.array(observed[columns_to_predict].sum(axis=1)[10000:])
+# mae, rmse, mape, smape = evaluate(y_observed, y_true, y_pred)
+# print("Total")
+# print("MAE:", mae)
+# print("RMSE:", rmse)
+# print("MAPE:", mape)
+# print("SMAPE", smape)

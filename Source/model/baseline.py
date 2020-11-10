@@ -15,7 +15,7 @@ import pandas as pd
 import joblib as joblib
 from pathlib import Path
 from statsmodels.tsa.api import VAR
-from evaluation_metric import evaluate
+from evaluation_metric import evaluate, evaluate_all
 from tqdm import tqdm
 
 # %% --------------------------------- General settings --------------------------------- #
@@ -37,27 +37,7 @@ test_true = pd.read_csv(loaddir.joinpath('raw/test.csv'), header=0)
 frames = [observed.tail(24+nobs), test_true]
 df_test = pd.concat(frames)
 
-pred = []
-errors = {
-    'mae': [],
-    'rmse': [],
-    'mape': []
-}
+y_true = test_true[columns_to_predict]
+y_pred = df_test[columns_to_predict].head(test_true.shape[0])
 
-for col in columns_to_predict:
-    y_pred = np.array(df_test[col].head(test_true.shape[0]))
-    y_true = np.array(test_true[col])
-    y_observed = np.array(observed[col][10000:])
-    mae, rmse, mape = evaluate(y_observed, y_true, y_pred, plot=False)
-    errors['mae'].append(mae)
-    errors['rmse'].append(rmse)
-    errors['mape'].append(mape)
-    print(col)
-    print("MAE:", mae)
-    print("RMSE:", rmse)
-    print("MAPE:", mape)
-
-print('Average error')
-print("MAE:", np.mean(errors['mae']))
-print("RMSE:", np.mean(errors['rmse']))
-print("MAPE:", np.mean(errors['mape']))
+evaluate_all(y_true, y_pred)

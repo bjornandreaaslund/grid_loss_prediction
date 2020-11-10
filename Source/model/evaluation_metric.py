@@ -46,9 +46,48 @@ def evaluate(y_observed, y_true, y_pred, plot=True) -> Tuple[float, float, float
 
     return mae, rmse, mape, smape
 
+
+def evaluate_all(y_true, y_pred):
+    grid_names = ['grid1-loss', 'grid2-loss', 'grid3-loss']
+    number_of_predictions = len(y_pred)
+
+    accumulative = {
+        'y_true': np.zeros(number_of_predictions),
+        'y_pred': np.zeros(number_of_predictions),
+    }
+
+    for grid in grid_names:
+        accumulative['y_true'] += y_true[grid]
+        accumulative['y_pred'] += y_pred[grid]
+
+        mae = mean_absolute_error(y_true[grid], y_pred[grid])
+        rmse = mean_squared_error(y_true[grid], y_pred[grid])
+        mape = mean_absolute_percentage_error(y_true[grid], y_pred[grid])
+        smape = symmetric_mean_absolute_percentage_error(y_true[grid], y_pred[grid])
+
+        print(grid.split('-')[0])
+        print("MAE:", mae)
+        print("RMSE:", rmse)
+        print("MAPE:", mape)
+        print("sMAPE:", smape)
+        print('----------------')
+
+    mae = mean_absolute_error(accumulative['y_true'], accumulative['y_pred'])
+    rmse = mean_squared_error(accumulative['y_true'], accumulative['y_pred'])
+    mape = mean_absolute_percentage_error(accumulative['y_true'], accumulative['y_pred'])
+    smape = symmetric_mean_absolute_percentage_error(accumulative['y_true'], accumulative['y_pred'])
+
+    print('Accumulative')
+    print("MAE:", mae)
+    print("RMSE:", rmse)
+    print("MAPE:", mape)
+    print("sMAPE:", smape)
+
+
 def mean_absolute_percentage_error(y_true, y_pred):
     y_true, y_pred = np.array(y_true), np.array(y_pred)
     return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
+
 
 def symmetric_mean_absolute_percentage_error(y_true, y_pred):
     y_true, y_pred = np.array(y_true), np.array(y_pred)
