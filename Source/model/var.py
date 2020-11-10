@@ -23,18 +23,18 @@ from tqdm import tqdm
 
 savedir_models = Path('Models/').resolve()
 loaddir = Path('Data/').resolve()
-scaler_filename = "scaler_test.save"
+scaler_filename = "scaler_test.sav"
 nobs = 144 # 6 days
 lookback_window = 7320 # 180 days
 columns_to_predict = ['grid1-loss', 'grid2-loss', 'grid3-loss']
 
 # %% ------------------------------- Read data ------------------------------- #
 
-pickle_path = Path('Data/serialized/processed_x_train_scaled_pickle').resolve()
+pickle_path = Path('Data/serialized/x_train').resolve()
 train = pd.read_pickle(pickle_path)
 train = train.dropna()
 
-pickle_path = Path('Data/serialized/processed_x_test_scaled_pickle').resolve()
+pickle_path = Path('Data/serialized/x_test').resolve()
 test = pd.read_pickle(pickle_path)
 
 observed = pd.read_csv(loaddir.joinpath('raw/train.csv'), header=0)
@@ -87,18 +87,20 @@ for col in pred.columns:
     y_pred = np.array(pred[col])
     y_true = np.array(test_true[col])
     y_observed = np.array(observed[col][10000:])
-    mae, rmse, mape = evaluate(y_observed, y_true, y_pred)
+    mae, rmse, mape, smape = evaluate(y_observed, y_true, y_pred)
     print(col)
     print("MAE:", mae)
     print("RMSE:", rmse)
     print("MAPE:", mape)
+    print("SMAPE", smape)
 
 # Evaluate sum
 y_pred = np.array(pred.sum(axis=1))
 y_true = np.array(test_true[columns_to_predict].sum(axis=1))
 y_observed = np.array(observed[columns_to_predict].sum(axis=1)[10000:])
-mae, rmse, mape = evaluate(y_observed, y_true, y_pred)
+mae, rmse, mape, smape = evaluate(y_observed, y_true, y_pred)
 print("Total")
 print("MAE:", mae)
 print("RMSE:", rmse)
 print("MAPE:", mape)
+print("SMAPE", smape)

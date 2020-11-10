@@ -14,6 +14,24 @@ savedir_models = Path('Models/').resolve()
 loaddir = Path('Data/').resolve()
 import matplotlib.pyplot as plt
 
+def create_data(time_series, forecast_length, backcast_length, point = True):
+    x = []
+    y = []
+    examples = len(time_series)-(backcast_length+forecast_length)
+    if point == False:
+        for i in range(examples):
+            x.append(np.array(time_series[i:i+backcast_length]))
+            y.append(np.array(time_series[i+backcast_length:i+backcast_length+forecast_length]))
+        x = np.array(x).reshape(examples,backcast_length, 1)
+        y = np.array(y).reshape(examples, forecast_length, 1)
+    if point == True:
+        for i in range(examples):
+            x.append(time_series[i:i+backcast_length])
+            y.append([i+backcast_length+forecast_length])
+        x = np.array(x).reshape(examples,backcast_length, 1)
+        y = np.array(y).reshape(examples, 1, 1)
+    return x, y
+
 
 def main():
     # https://keras.io/layers/recurrent/
@@ -27,6 +45,7 @@ def main():
 
     scaler = joblib.load(savedir_models / 'scaler_grid1.sav')
 
+
     pickle_path1 = Path('Data/serialized/x_train').resolve()
     X_train = pd.read_pickle(pickle_path1)
     x = np.array(X_train['grid1-loss'].head(-6*24))
@@ -36,15 +55,13 @@ def main():
     y_train = pd.read_pickle(pickle_path2)
     y = np.array(y_train.head(-6*24))
 
-    num_samples = X_train.shape[0]
-    backcast_length, input_dim, output_dim = 1, 1, 1
+    num_samples = X_train.shape[0]-6*24
+    backcast_length, input_dim, output_dim = 6*24, 1, 6*24
 
-    x = x.reshape(num_samples, backcast_length, input_dim)
-    exo = exo.reshape(num_samples, backcast_length, input_dim)
-    y = y.reshape(num_samples, backcast_length, input_dim)
+    x = create_data(x, output_dim, backcast_length, False)
+    exo = create_data(exo, output_dim, backcast_length, False)
+    y = create_data(y, output_dim, backcast_length, False)
 
-    print(np.array(y_train)[0])
-    print(np.array(X_train)[6*24])
 
 
     # Definition of the model.
@@ -64,7 +81,9 @@ def main():
     # Split data into training and testing datasets.
     c = num_samples // 10
     x_train, exo_train, y_train, x_val, exo_val, y_val = x[c:], exo[c:], y[c:], x[:c], exo[:c], y[:c]
-
+    print(x_train)
+    print(exo_train)
+    print(exo_val)
 
     # Train the model.
     model.fit([x_train, exo_train], y_train, validation_data=([x_val, exo_val], y_val), epochs=20, batch_size=128)
@@ -77,11 +96,10 @@ def main():
 
 
     # Predict on the testing set.
-
     pickle_path = Path('Data/serialized/x_test').resolve()
     test = pd.read_pickle(pickle_path)
-    X_test = pd.concat(X_train['grid1-loss'].tail(6*24), test['grid1-loss'].head(-6*24))
-    EXO_test = pd.concat(X_train['grid1-temp'].tail(6*24), test['grid1-temp'].head(-6*24))
+    X_test = pd.concat([X_train['grid1-loss'].tail(18*24), test['grid1-loss'].head(-18*24)])
+    EXO_test = pd.concat([X_train['grid1-temp'].tail(18*24), test['grid1-temp'].head(-18*24)])
 
     predictions = model.predict([np.array(X_test).reshape(4369, 1, 1), np.array(EXO_test).reshape(4369, 1, 1)])
     predictions = predictions[:,0, 0]
