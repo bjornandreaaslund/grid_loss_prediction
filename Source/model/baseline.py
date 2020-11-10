@@ -38,13 +38,26 @@ frames = [observed.tail(24+nobs), test_true]
 df_test = pd.concat(frames)
 
 pred = []
+errors = {
+    'mae': [],
+    'rmse': [],
+    'mape': []
+}
 
 for col in columns_to_predict:
     y_pred = np.array(df_test[col].head(test_true.shape[0]))
     y_true = np.array(test_true[col])
     y_observed = np.array(observed[col][10000:])
-    mae, rmse, mape = evaluate(y_observed, y_true, y_pred)
+    mae, rmse, mape = evaluate(y_observed, y_true, y_pred, plot=False)
+    errors['mae'].append(mae)
+    errors['rmse'].append(rmse)
+    errors['mape'].append(mape)
     print(col)
     print("MAE:", mae)
     print("RMSE:", rmse)
     print("MAPE:", mape)
+
+print('Average error')
+print("MAE:", np.mean(errors['mae']))
+print("RMSE:", np.mean(errors['rmse']))
+print("MAPE:", np.mean(errors['mape']))

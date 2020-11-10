@@ -9,7 +9,7 @@ from sklearn.metrics import mean_squared_error
 
 # we evaluate on the same metrics used in the paper
 # MAE, RMSE and MAPE
-def evaluate(y_observed, y_true, y_pred) -> Tuple[float, float, float]:
+def evaluate(y_observed, y_true, y_pred, plot=True) -> Tuple[float, float, float]:
     """
     y_true: array-like of shape
     y_pred: array-like of shape
@@ -39,9 +39,10 @@ def evaluate(y_observed, y_true, y_pred) -> Tuple[float, float, float]:
     data.to_pickle(save_path)
 
     # plot prediction and actual values
-    sb.set()
-    sb.lineplot(data=data, dashes=False, palette='colorblind')
-    plt.show()
+    if plot:
+        sb.set()
+        sb.lineplot(data=data, dashes=False, palette='colorblind')
+        plt.show()
 
     return mae, rmse, mape, smape
 
