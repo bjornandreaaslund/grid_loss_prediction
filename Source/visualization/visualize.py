@@ -5,10 +5,16 @@ import pandas as pd
 import seaborn as sns
 
 
-pickle_path = Path('Data/serialized/processed_data_pickle')
-train = pd.read_pickle(pickle_path)
+def main():
 
-loss = train['grid1-loss']
-print(loss.describe())
+    pickle_path = Path('Data/serialized/processed_data_pickle')
+    train = pd.read_pickle(pickle_path)
 
-sns.lineplot(loss)
+    loss = train['grid1-loss']
+    print(loss.describe())
+
+    sns.lineplot(loss)
+
+
+if __name__ == "__main__":
+    main()
