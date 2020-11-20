@@ -13,8 +13,6 @@ Contents:
 
 '''
 
-# %% --------------------------------- Imports --------------------------------- #
-
 import os
 import gc
 import datetime as datetime
@@ -32,7 +30,9 @@ from sklearn.preprocessing import RobustScaler
 
 def main():
 
-    # General Settings
+
+    ''' General Settings'''
+    
     pd.options.mode.chained_assignment = None
     loaddir = Path('Data/').resolve()
     savedir_log = Path('Log/').resolve()
@@ -43,7 +43,8 @@ def main():
     if not os.path.exists(savedir_meta):
         os.mkdir(os.path.join(os.getcwd(), savedir_meta))
 
-    # %% --------------------- Read data and general settings ---------------------------- #
+
+    ''' Read data and general settings '''
 
     df_columns = {  'Grid_data' : ['Unnamed: 0', 'demand', 'grid1-load', 'grid1-loss','grid1-temp', 'grid2-load', 'grid2-loss','grid2_1-temp',
                                     'grid2_2-temp', 'grid3-load', 'grid3-loss', 'grid3-temp', 'has incorrect data'],
@@ -70,7 +71,9 @@ def main():
     train = pd.read_csv(loaddir.joinpath('raw/train.csv'), header=0)
     test = pd.read_csv(loaddir.joinpath('raw/test.csv'), header=0)
 
-    # %% ---------------------- Grouping data and saving the in Data/processed --------------------- #
+
+    ''' Grouping data and saving the in Data/processed '''
+
     grid_data = train[df_columns['Grid_data']]
     grid_data.rename(columns={'Unnamed: 0': 'timestamp'}, inplace=True)
     grid_data.to_csv(loaddir.joinpath('processed/grid_data.csv'))
@@ -83,7 +86,9 @@ def main():
 
     del prophet, seasonal
 
-    # %% ---------------------- Data cleaning -------------------------------------#
+    
+    ''' Data cleaning '''
+
     print("\nData cleaning...")
     C_to_K = 273
 
@@ -113,7 +118,9 @@ def main():
     # remove wrong measurement from grid2-loss
     train['grid2-loss'][sensor_error_start:sensor_error_end] = np.nan
 
-    # %% ------------------------------- Imputation -------------------------------- #
+    
+    ''' Imputation '''
+
     print("\nImputing missing values...")
 
     # columns with nan, which need imputation
@@ -194,7 +201,9 @@ def main():
     pickle_path = Path('Data/serialized/processed_x_train_pickle')
     x_train.to_pickle(pickle_path)
 
-    # %% ------------------------------- Scaling -------------------------------- #
+    
+    ''' Scaling '''
+
     # we use robust scaler since we have some anomalies
     # saves the scalers for transforming back after predicting
     print('\nScaling and desesonalizing...')
@@ -225,7 +234,9 @@ def main():
 
     x_test[x_test.columns] = scaler_test.transform(x_test)
 
-    # %% ------------------------ Creating lag features -------------------------- #
+
+    ''' Creating lag features '''
+
     # create lag features for models which does not have a natural definition of time
     print("\nCreating lag features...")
     lag_variables  = ['demand', 'grid1-load', 'grid1-loss','grid1-temp', 'grid2-load', 'grid2-loss','grid2_1-temp',
@@ -239,7 +250,9 @@ def main():
             data_with_lag[var+str(lag)] = data_with_lag[var].shift(lag*24)
     data_with_lag = data_with_lag.dropna()
 
-    # %% ---------------------------- Shifting data ----------------------------- #
+
+    ''' Shifting data '''
+
     # to predict loss for day d we use seasonal data for day d, weather data for day d
     # and demand, load and loss data for day d-6.
     print("\nShifting data...")
@@ -253,7 +266,9 @@ def main():
     data_with_lag[df_columns['Temperature']] = data_with_lag[df_columns['Temperature']].shift(forecast_window)
     data_with_lag = data_with_lag.dropna()
 
-    # %% ---------------------------- Data Export ----------------------------- #
+
+    ''' Data Export '''
+
     # saves two set of x and y, one with lag and one without
     print('\nExporting data...')
     #create y-values -> the loss 6 days ahead for each grid
