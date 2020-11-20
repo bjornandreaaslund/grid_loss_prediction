@@ -2,7 +2,6 @@
 '''
 
 from pathlib import Path
-
 from nbeats_keras.model import NBeatsNet
 from sklearn.model_selection import train_test_split
 import pandas as pd
@@ -13,6 +12,7 @@ from evaluation_metric import evaluate, mean_absolute_percentage_error
 savedir_models = Path('Models/').resolve()
 loaddir = Path('Data/').resolve()
 import matplotlib.pyplot as plt
+
 
 def create_data(time_series, forecast_length, backcast_length, point = True):
     x = []
@@ -34,17 +34,19 @@ def create_data(time_series, forecast_length, backcast_length, point = True):
 
 
 def main():
+
     # https://keras.io/layers/recurrent/
     # Definition of the data. The problem to solve is to find f such as | f(x) - y | -> 0.
 
-    # creates dataframes for evaluation
+
+    ''' Read data '''
+
     observed = pd.read_csv(loaddir.joinpath('raw/train.csv'), header=0)
     test_true = pd.read_csv(loaddir.joinpath('raw/test.csv'), header=0)
     y_true = test_true[['grid1-loss']]
     y_observed = observed[['grid1-loss']][10000:]
 
     scaler = joblib.load(savedir_models / 'scaler_grid1.sav')
-
 
     pickle_path1 = Path('Data/serialized/x_train').resolve()
     X_train = pd.read_pickle(pickle_path1)
@@ -63,19 +65,15 @@ def main():
     y = create_data(y, output_dim, backcast_length, False)
 
 
+    ''' Create and train the model '''
 
     # Definition of the model.
     model = NBeatsNet(backcast_length=backcast_length, forecast_length=output_dim, exo_dim=1,
                       stack_types=(NBeatsNet.GENERIC_BLOCK, NBeatsNet.GENERIC_BLOCK), nb_blocks_per_stack=2,
                       thetas_dim=(4, 4), share_weights_in_stack=True, hidden_layer_units=64)
 
-
-
     # Definition of the objective function and the optimizer.
     model.compile_model(loss='mae', learning_rate=1e-5)
-
-
-
 
 
     # Split data into training and testing datasets.
@@ -88,12 +86,11 @@ def main():
     # Train the model.
     model.fit([x_train, exo_train], y_train, validation_data=([x_val, exo_val], y_val), epochs=20, batch_size=128)
 
-
-
     # Save the model for later.
     model.save('n_beats_model.h5')
 
 
+    ''' Make predictions '''
 
     # Predict on the testing set.
     pickle_path = Path('Data/serialized/x_test').resolve()
@@ -105,6 +102,9 @@ def main():
     predictions = predictions[:,0, 0]
     y_pred = scaler.inverse_transform(np.array(predictions).reshape(-1, 1))
 
+
+    ''' Evaluate predictions '''
+
     mae, rmse, mape, smape = evaluate(np.array(y_observed), np.array(y_true), y_pred)
     # Load the model.
 
@@ -114,11 +114,10 @@ def main():
     print("sMAPE", smape)
 
 
-
 def demo():
     # https://keras.io/layers/recurrent/
     # Definition of the data. The problem to solve is to find f such as | f(x) - y | -> 0.
-    # %% ----------------------- General settings ----------------------- #
+    ''' General settings '''
 
     savedir_models = Path('Models/').resolve()
     loaddir = Path('Data/').resolve()
@@ -128,7 +127,7 @@ def demo():
     columns_to_predict = ['grid1-loss', 'grid2-loss', 'grid3-loss']
     target_col = columns_to_predict[grid_number] # select which column to predict
 
-    # %% ----------------------- Read data ----------------------- #
+    ''' Read data '''
 
     # x-values
     pickle_path = Path('Data/serialized/x_train_with_lag').resolve()
@@ -267,16 +266,13 @@ def demo():
         print(pred_value[:,0, 0])
         pred.append(pred_value[:,0, 0])
 
-    # %% ------------------------------- Evaluate ------------------------------- #
-    print("\nEvaluate...")
+    ''' Evaluate '''
     y_pred = scaler.inverse_transform(np.array(pred).reshape(-1, 1))
     mae, rmse, mape = evaluate(np.array(y_observed[target_col]), np.array(y_true[target_col]), np.array(y_pred))
+    print("\nEvaluate...")
     print("MAE:", mae)
     print("RMSE:", rmse)
     print("MAPE:", mape)
-
-
-
 
 
 if __name__ == '__main__':

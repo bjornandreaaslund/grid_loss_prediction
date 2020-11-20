@@ -11,8 +11,6 @@ Contents:
 
 '''
 
-# %% --------------------------------- Imports --------------------------------- #
-
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -31,59 +29,13 @@ from hyperopt import STATUS_OK
 import tensorflow as tf
 from tqdm import tqdm
 
-# %% ----------------------- General settings ----------------------- #
 
-savedir_models = Path('Models/').resolve()
-loaddir = Path('Data/').resolve()
-nobs = 144 # 6 days
-lookback_window = 24*90 # 90 days
-grid_number = 1 # select which grid to predict : 0 -> grid1, 1 -> grid2, 2 -> grid3
-columns_to_predict = ['grid1-loss', 'grid2-loss', 'grid3-loss']
-target_col = columns_to_predict[grid_number] # select which column to predict
-MAPE = make_scorer(mean_absolute_percentage_error, greater_is_better=False)
+def prepare_data(time_series, forecast_length, backcast_length, point = True):
+    '''
+    Transforms timeseries of length n to (n//backcast_length, backcast_length, 1)
 
-forecast_length = 6*24 # 6 days
-backcast_length = 8*24
-input_dim = 1
-output_dim = 1
-if output_dim ==1:
-    point = True
-else:
-    point = False
+    '''
 
-# %% ----------------------- Read data ----------------------- #
-
-# x-values
-pickle_path = Path('Data/serialized/x_train').resolve()
-X_train = pd.read_pickle(pickle_path)
-pickle_path = Path('Data/serialized/x_test').resolve()
-X_test = pd.read_pickle(pickle_path)
-
-# exogenous variables
-exo_train = train[['grid2-load', 'gird2-temp']]
-exo_ttest = test[['grid2-load', 'gird2-temp']]
-
-timeseries = pd.concat([X_train, X_test])[target_col]
-timeseries_train = timeseries.head(-X_test.shape[0])
-timeseries_test = timeseries.tail(X_test.shape[0])
-
-# creates dataframes for evaluation
-observed = pd.read_csv(loaddir.joinpath('raw/train.csv'), header=0)
-test_true = pd.read_csv(loaddir.joinpath('raw/test.csv'), header=0)
-y_true = test_true[columns_to_predict]
-y_observed = observed[columns_to_predict][10000:]
-
-# scalers for inverse transform after predicting
-scaler_grid1 = joblib.load(savedir_models / 'scaler_grid1.sav')
-scaler_grid2 = joblib.load(savedir_models / 'scaler_grid2.sav')
-scaler_grid3 = joblib.load(savedir_models / 'scaler_grid3.sav')
-
-scaler = [scaler_grid1, scaler_grid2, scaler_grid3][grid_number] # select the scaler for the selected grid
-
-# %% ----------------------- Preparation of data ----------------------- #
-# needs to transform timeseries of length n to (n//backcast_length, backcast_length, 1)
-
-def create_data(time_series, forecast_length, backcast_length, point = True):
     x = []
     y = []
     examples = len(time_series)-(backcast_length+forecast_length)
@@ -101,156 +53,231 @@ def create_data(time_series, forecast_length, backcast_length, point = True):
         y = np.array(y).reshape(examples, 1, 1)
     return x, y
 
-"""
-# %% ------------------------------- Hyperparameter optimization ------------------------------- #
-print("\nHyperparameter optimization")
-#Bayesian optimazation
-#This optimization runs for a while
-#https://towardsdatascience.com/an-introductory-example-of-bayesian-optimization-in-python-with-hyperopt-aae40fff4ff0
 
-# Keep track of results
-bayes_trials = Trials()
+def build_objective(timeseries_data):
 
-def objective(space):
-    # Keep track of evals
-    global ITERATION
-    ITERATION += 1
-    x, y = create_data(time_series=timeseries_train, forecast_length=forecast_length, backcast_length=space['backcast_length'], point = True)
-    print("ok")
-    nbeats = NBeatsNet(input_dim=input_dim, backcast_length=space['backcast_length'], forecast_length=output_dim,
-                      stack_types=(NBeatsNet.GENERIC_BLOCK, NBeatsNet.GENERIC_BLOCK), nb_blocks_per_stack=space['nb_blocks_per_stack'],
-                      thetas_dim=(4, 4), share_weights_in_stack=space['share_weights_in_stack'], hidden_layer_units=space['hidden_layer_units'])
-    print("2")
-    nbeats.compile_model(loss='mae', learning_rate=space['learning_rate'])
-    # Split data into training and testing datasets.
-    c = x.shape[0] // 10
-    x_train, y_train, x_test, y_test = x[c:], y[c:], x[:c], y[:c]
-    print(x_train.shape)
-    print(x_test.shape)
-    print(y_train.shape)
-    print(y_test.shape)
+    def objective(space):
+        '''
+        TODO: add docstring
 
-    # Train the model.
-    nbeats.fit(x_train, y_train, validation_data=(x_test, y_test), epochs=10, batch_size=128)
-    loss = nbeats.evaluate(x_test, y_test)
+        '''
 
-    print("CrossVal mean of MAE:", loss)
+        # Keep track of evals
+        global ITERATION
+        ITERATION += 1
+        x, y = prepare_data(time_series=timeseries_data, forecast_length=FORECAST_LENGTH, backcast_length=space['backcast_length'], point = True)
+        print("ok")
+        nbeats = NBeatsNet(input_dim=INPUT_DIM, backcast_length=space['backcast_length'], forecast_length=OUTPUT_DIM,
+                        stack_types=(NBeatsNet.GENERIC_BLOCK, NBeatsNet.GENERIC_BLOCK), nb_blocks_per_stack=space['nb_blocks_per_stack'],
+                        thetas_dim=(4, 4), share_weights_in_stack=space['share_weights_in_stack'], hidden_layer_units=space['hidden_layer_units'])
+        print("2")
+        nbeats.compile_model(loss='mae', learning_rate=space['learning_rate'])
+        # Split data into training and testing datasets.
+        c = x.shape[0] // 10
+        x_train, y_train, x_test, y_test = x[c:], y[c:], x[:c], y[:c]
+        print(x_train.shape)
+        print(x_test.shape)
+        print(y_train.shape)
+        print(y_test.shape)
 
-    return{'loss': loss, 'params': space, 'status': STATUS_OK }
+        # Train the model.
+        nbeats.fit(x_train, y_train, validation_data=(x_test, y_test), epochs=10, batch_size=128)
+        loss = nbeats.evaluate(x_test, y_test)
 
-# define the space that we want to search
-# since we do not have any prior knowledge they are all uniform or choice
-space = {
-    'backcast_length': hp.choice('backcast_length', range(nobs, 7*nobs, nobs)),
-    'nb_blocks_per_stack': hp.choice('nb_blocks_per_stack', range(1, 4, 1)),
-    'share_weights_in_stack': hp.choice('share_weights_in_stack', [True, False]),
-    'hidden_layer_units': hp.choice('hidden_layer_units', [32, 64, 128]),
-    'learning_rate': hp.choice('learning_rate', [1e-6, 1e-5, 1e-4, 1e-3])}
+        print("CrossVal mean of MAE:", loss)
 
-# Global variable
-global  ITERATION
-
-ITERATION = 0
-
-# tpe.suggest generates the agorithm for finding the next point to check
-# fmin returns the best parameters
-evals = 40
-best = fmin(fn = objective, space = space, algo = tpe.suggest, max_evals = evals, trials = bayes_trials, rstate = np.random.RandomState(50))
-best_params = best
-print(best_params)
-
-# Sort the trials with lowest loss first
-bayes_trials_results = sorted(bayes_trials.results, key = lambda x: x['loss'])
-print(bayes_trials_results[:2])
-backcast_length = []
-nb_blocks_per_stack = []
-share_weights_in_stack = []
-hidden_layer_units = []
-learning_rate = []
-for i in range(evals):
-    b_l = bayes_trials_results[i]['params']['backcast_length']
-    backcast_length.append(b_l)
-    b_per_s = bayes_trials_results[i]['params']['nb_blocks_per_stack']
-    nb_blocks_per_stack.append(b_per_s)
-    s_w = bayes_trials_results[i]['params']['share_weights_in_stack']
-    share_weights_in_stack.append(s_w)
-    h_l = bayes_trials_results[i]['params']['hidden_layer_units']
-    hidden_layer_units.append(h_l)
-    l_r = bayes_trials_results[i]['params']['learning_rate']
-    learning_rate.append(l_r)
+        return{'loss': loss, 'params': space, 'status': STATUS_OK }
+    
+    return objective
 
 
-bayes_params = pd.DataFrame({'backcast_length': backcast_length, 'nb_blocks_per_stack': nb_blocks_per_stack,
-            'share_weights_in_stack': share_weights_in_stack, 'hidden_layer_units': hidden_layer_units,
-            'learning_rate': learning_rate})
+def main():
 
-# Code for vizualizing the bayesian optimization
-plt.figure(figsize = (20, 8))
-plt.rcParams['font.size'] = 18
+    ''' Read data '''
 
-# Density plots of the parameter distributions
-for col in bayes_params:
-    sns.kdeplot(bayes_params[col], label = 'Bayes Optimization', linewidth = 2)
-    plt.legend()
-    plt.xlabel(str(col))
-    plt.ylabel('Density'); plt.title(str(col) + ' Distribution')
-    plt.show()
+    # x-values
+    pickle_path = Path('Data/serialized/x_train').resolve()
+    X_train = pd.read_pickle(pickle_path)
+    pickle_path = Path('Data/serialized/x_test').resolve()
+    X_test = pd.read_pickle(pickle_path)
 
-model_name = "NBeats_best"
+    # exogenous variables
+    exo_train = train[['grid2-load', 'gird2-temp']]
+    exo_ttest = test[['grid2-load', 'gird2-temp']]
 
-nbeats = NBeatsNet(input_dim=input_dim, backcast_length=best_params['backcast_length'], forecast_length=output_dim,
-                  stack_types=(NBeatsNet.GENERIC_BLOCK, NBeatsNet.GENERIC_BLOCK), nb_blocks_per_stack=best_params['nb_blocks_per_stack'],
-                  thetas_dim=(4, 4), share_weights_in_stack=space['share_weights_in_stack'], hidden_layer_units=best_params['hidden_layer_units'])
+    timeseries = pd.concat([X_train, X_test])[target_col]
+    timeseries_train = timeseries.head(-X_test.shape[0])
+    timeseries_test = timeseries.tail(X_test.shape[0])
 
-nbeats.compile_model(loss='mae', learning_rate=best_params['learning_rate'])
+    # creates dataframes for evaluation
+    observed = pd.read_csv(loaddir.joinpath('raw/train.csv'), header=0)
+    test_true = pd.read_csv(loaddir.joinpath('raw/test.csv'), header=0)
+    y_true = test_true[columns_to_predict]
+    y_observed = observed[columns_to_predict][10000:]
 
-nbeats.save(savedir_models / 'n_beats_grid1.h5')
-"""
-# %% ------------------------------- Forecast ------------------------------- #
-print("\nForecast...")
-# we will forecast 6 days ahead, and fit the model on all available data up to this point
+    # scalers for inverse transform after predicting
+    scaler_grid1 = joblib.load(savedir_models / 'scaler_grid1.sav')
+    scaler_grid2 = joblib.load(savedir_models / 'scaler_grid2.sav')
+    scaler_grid3 = joblib.load(savedir_models / 'scaler_grid3.sav')
 
-forecast_data = timeseries.tail(X_test.shape[0]+ nobs + lookback_window)
-pred = []
-horizons = np.arange(1, 8)
-backcast_length=24
-ensemble = pd.Dataframe()
+    scaler = [scaler_grid1, scaler_grid2, scaler_grid3][GRID_NUMBER] # select the scaler for the selected grid
 
-#nbeats = NBeatsNet.load(savedir_models / 'n_beats_model.h5')
-nbeats = NBeatsNet(input_dim=input_dim, backcast_length=backcast_length,
-                forecast_length=output_dim,
-                stack_types=(NBeatsNet.GENERIC_BLOCK, NBeatsNet.GENERIC_BLOCK), nb_blocks_per_stack=1,
-                thetas_dim=(4, 4), share_weights_in_stack=True, hidden_layer_units=128)
-nbeats.compile_model(loss='mae', learning_rate=1e-5)
 
-for h in horizons: # creates predictions for each of the horizons to make an ensemble
-    backcast_length = 24*h
-    for i in tqdm(range(X_test.shape[0])):
-        # fit new model on the sliding window
-        # the model does not handle conastant values so we can not use binary variable
-        # if they are constant in the forecast window
-        # important to have the sesonal time series, but check that they are not constant
-        forecast_slice = np.array(timeseries.iloc[i:lookback_window+i])
+    ''' Hyperparameter optimization '''
 
-        x, y = create_data(forecast_slice, forecast_length, backcast_length, point=True)
+    print("\nHyperparameter optimization")
 
-        if (i%24 == 0):
+    #Bayesian optimazation
+    #This optimization runs for a while
+    #https://towardsdatascience.com/an-introductory-example-of-bayesian-optimization-in-python-with-hyperopt-aae40fff4ff0
 
-            # trains one model each day
-            nbeats.fit(x, y, epochs=10, batch_size=128)
+    bayes_trials = Trials()     # Keep track of results
 
-        pred_value = nbeats.predict(np.array(timeseries.iloc[lookback_window+i+1-backcast_length:lookback_window+i+1]).reshape(1, backcast_length, 1))
-        pred.append(pred_value[:,0, 0])
-    ensemble[str(h)] = pred
+    # define the space that we want to search
+    # since we do not have any prior knowledge they are all uniform or choice
+    space = {
+        'backcast_length': hp.choice('backcast_length', range(NOBS, 7*NOBS, NOBS)),
+        'nb_blocks_per_stack': hp.choice('nb_blocks_per_stack', range(1, 4, 1)),
+        'share_weights_in_stack': hp.choice('share_weights_in_stack', [True, False]),
+        'hidden_layer_units': hp.choice('hidden_layer_units', [32, 64, 128]),
+        'learning_rate': hp.choice('learning_rate', [1e-6, 1e-5, 1e-4, 1e-3])}
+
+    # tpe.suggest generates the agorithm for finding the next point to check
+    # fmin returns the best parameters
+    evals = 40
+    objective = build_objective(timeseries_train)
+    best = fmin(fn = objective, space = space, algo = tpe.suggest, max_evals = evals, trials = bayes_trials, rstate = np.random.RandomState(50))
+    best_params = best
+    print(best_params)
+
+    # Sort the trials with lowest loss first
+    bayes_trials_results = sorted(bayes_trials.results, key = lambda x: x['loss'])
+    print(bayes_trials_results[:2])
+    backcast_length = []
+    nb_blocks_per_stack = []
+    share_weights_in_stack = []
+    hidden_layer_units = []
+    learning_rate = []
+    for i in range(evals):
+        b_l = bayes_trials_results[i]['params']['backcast_length']
+        backcast_length.append(b_l)
+        b_per_s = bayes_trials_results[i]['params']['nb_blocks_per_stack']
+        nb_blocks_per_stack.append(b_per_s)
+        s_w = bayes_trials_results[i]['params']['share_weights_in_stack']
+        share_weights_in_stack.append(s_w)
+        h_l = bayes_trials_results[i]['params']['hidden_layer_units']
+        hidden_layer_units.append(h_l)
+        l_r = bayes_trials_results[i]['params']['learning_rate']
+        learning_rate.append(l_r)
+
+
+    bayes_params = pd.DataFrame({'backcast_length': backcast_length, 'nb_blocks_per_stack': nb_blocks_per_stack,
+                'share_weights_in_stack': share_weights_in_stack, 'hidden_layer_units': hidden_layer_units,
+                'learning_rate': learning_rate})
+
+    # Code for vizualizing the bayesian optimization
+    plt.figure(figsize = (20, 8))
+    plt.rcParams['font.size'] = 18
+
+    # Density plots of the parameter distributions
+    for col in bayes_params:
+        sns.kdeplot(bayes_params[col], label = 'Bayes Optimization', linewidth = 2)
+        plt.legend()
+        plt.xlabel(str(col))
+        plt.ylabel('Density'); plt.title(str(col) + ' Distribution')
+        plt.show()
+
+    model_name = "NBeats_best"
+
+    nbeats = NBeatsNet(input_dim=INPUT_DIM, backcast_length=best_params['backcast_length'], forecast_length=OUTPUT_DIM,
+                    stack_types=(NBeatsNet.GENERIC_BLOCK, NBeatsNet.GENERIC_BLOCK), nb_blocks_per_stack=best_params['nb_blocks_per_stack'],
+                    thetas_dim=(4, 4), share_weights_in_stack=space['share_weights_in_stack'], hidden_layer_units=best_params['hidden_layer_units'])
+
+    nbeats.compile_model(loss='mae', learning_rate=best_params['learning_rate'])
+
+    nbeats.save(savedir_models.resolve() / 'n_beats_grid1.h5')
+
+
+    ''' Forecast '''
+
+    print("\nForecast...")
+    # we will forecast 6 days ahead, and fit the model on all available data up to this point
+
+    forecast_data = timeseries.tail(X_test.shape[0]+ NOBS + LOOKBACK_WINDOW)
     pred = []
-# %% ------------------------------- Evaluate ------------------------------- #
+    horizons = np.arange(1, 8)
+    backcast_length=24
+    ensemble = pd.Dataframe()
 
-# selects the median of the predictions to handle outliers
-median = ensemble.median(axis=0) # axis=0 to find the median of each row
+    #nbeats = NBeatsNet.load(savedir_models / 'n_beats_model.h5')
+    nbeats = NBeatsNet(input_dim=INPUT_DIM, backcast_length=backcast_length,
+                    forecast_length=OUTPUT_DIM,
+                    stack_types=(NBeatsNet.GENERIC_BLOCK, NBeatsNet.GENERIC_BLOCK), nb_blocks_per_stack=1,
+                    thetas_dim=(4, 4), share_weights_in_stack=True, hidden_layer_units=128)
+    nbeats.compile_model(loss='mae', learning_rate=1e-5)
 
-print("\nEvaluate...")
-y_pred = scaler.inverse_transform(np.array(median).reshape(-1, 1))
-mae, rmse, mape = evaluate(np.array(y_observed[target_col]), np.array(y_true[target_col]), np.array(y_pred))
-print("MAE:", mae)
-print("RMSE:", rmse)
-print("MAPE:", mape)
+    for h in horizons: # creates predictions for each of the horizons to make an ensemble
+        backcast_length = 24*h
+        for i in tqdm(range(X_test.shape[0])):
+            # fit new model on the sliding window
+            # the model does not handle conastant values so we can not use binary variable
+            # if they are constant in the forecast window
+            # important to have the sesonal time series, but check that they are not constant
+            forecast_slice = np.array(timeseries.iloc[i:LOOKBACK_WINDOW+i])
+
+            x, y = prepare_data(forecast_slice, FORECAST_LENGTH, backcast_length, point=True)
+
+            if (i%24 == 0):
+
+                # trains one model each day
+                nbeats.fit(x, y, epochs=10, batch_size=128)
+
+            pred_value = nbeats.predict(np.array(timeseries.iloc[LOOKBACK_WINDOW+i+1-backcast_length:LOOKBACK_WINDOW+i+1]).reshape(1, backcast_length, 1))
+            pred.append(pred_value[:,0, 0])
+        ensemble[str(h)] = pred
+        pred = []
+
+
+    ''' Evaluate '''
+
+    # selects the median of the predictions to handle outliers
+    median = ensemble.median(axis=0) # axis=0 to find the median of each row
+
+    y_pred = scaler.inverse_transform(np.array(median).reshape(-1, 1))
+    mae, rmse, mape = evaluate(np.array(y_observed[target_col]), np.array(y_true[target_col]), np.array(y_pred))
+    
+    print("\nEvaluate...")
+    print("MAE:", mae)
+    print("RMSE:", rmse)
+    print("MAPE:", mape)
+
+
+if __name__ == "__main__":
+
+    ''' General settings '''
+    
+    GRID_NUMBER = 1 # select which grid to predict : 0 -> grid1, 1 -> grid2, 2 -> grid3
+    NOBS = 144 # 6 days
+    LOOKBACK_WINDOW = 24*90 # 90 days
+    FORECAST_LENGTH = 6*24 # 6 days
+    INPUT_DIM = 1
+    OUTPUT_DIM = 1
+    MAPE = make_scorer(mean_absolute_percentage_error, greater_is_better=False)
+    global  ITERATION
+    ITERATION = 0
+
+    savedir_models = Path('Models/')
+    loaddir = Path('Data/')
+
+    columns_to_predict = ['grid1-loss', 'grid2-loss', 'grid3-loss']
+    target_col = columns_to_predict[GRID_NUMBER] # select which column to predict
+
+    if OUTPUT_DIM ==1:
+        point = True
+    else:
+        point = False
+
+
+    ''' Execute NBEATS forcasting '''
+
+    main()
