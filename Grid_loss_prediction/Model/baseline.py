@@ -33,13 +33,15 @@ def main():
     test_true = pd.read_csv(loaddir.joinpath('raw/test.csv'), header=0)
 
 
-    '''Evaluate''' 
 
     frames = [observed.tail(24+nobs), test_true] # we will forecast 6 days ahead, and fit the model on all available data up to this point
     df_test = pd.concat(frames)
 
     y_true = test_true[columns_to_predict]
     y_pred = df_test[columns_to_predict].head(test_true.shape[0])
+
+    
+    '''Evaluate''' 
 
     evaluate_all(y_true, y_pred)
 
