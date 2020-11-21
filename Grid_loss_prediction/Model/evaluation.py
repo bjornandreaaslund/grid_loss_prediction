@@ -48,7 +48,7 @@ def evaluate(y_observed, y_true, y_pred, plot=True) -> Tuple[float, float, float
     return mae, rmse, mape, smape
 
 
-def evaluate_all(y_true, y_pred):
+def evaluate_all(y_true: pd.DataFrame, y_pred: pd.DataFrame) -> None:
     grid_names = ['grid1-loss', 'grid2-loss', 'grid3-loss']
     number_of_predictions = len(y_pred)
 
