@@ -89,7 +89,7 @@ def main():
     y_true = test_true[pred.columns]
     y_pred = pred
 
-    evaluate_all(y_true, y_pred)
+    evaluate_all(y_true, y_pred, Path('Results/var'))
 
 
 if __name__ == "__main__":

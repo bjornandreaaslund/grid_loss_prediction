@@ -40,11 +40,11 @@ def main():
     y_true = test_true[columns_to_predict]
     y_pred = df_test[columns_to_predict].head(test_true.shape[0])
 
-    
+
     '''Evaluate''' 
 
-    evaluate_all(y_true, y_pred)
+    evaluate_all(y_true, y_pred, save_dir=Path('Results/baseline'))
 
 
 if __name__ == "__main__":
-    pass
+    main()
