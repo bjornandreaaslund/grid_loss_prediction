@@ -4,7 +4,7 @@ Contents:
 - Imports
 - General settings
 - Read data
-- Evaluation
+- Save predictions
 
 '''
 
@@ -13,7 +13,6 @@ import pandas as pd
 import joblib as joblib
 from pathlib import Path
 from statsmodels.tsa.api import VAR
-from evaluation import evaluate_all
 
 
 def main():
@@ -29,21 +28,16 @@ def main():
 
     '''Read data'''
 
-    observed = pd.read_csv(loaddir.joinpath('raw/train.csv'), header=0)
-    test_true = pd.read_csv(loaddir.joinpath('raw/test.csv'), header=0)
+    train = pd.read_csv(loaddir.joinpath('raw/train.csv'), header=0)
+    test = pd.read_csv(loaddir.joinpath('raw/test.csv'), header=0)
 
-
-
-    frames = [observed.tail(24+nobs), test_true] # we will forecast 6 days ahead, and fit the model on all available data up to this point
+    frames = [train.tail(24+nobs), test] # we will forecast 6 days ahead, and fit the model on all available data up to this point
     df_test = pd.concat(frames)
+    y_pred = df_test[columns_to_predict].head(test.shape[0])
 
-    y_true = test_true[columns_to_predict]
-    y_pred = df_test[columns_to_predict].head(test_true.shape[0])
+    '''Save predictions'''
 
-
-    '''Evaluate'''
-
-    evaluate_all(y_true, y_pred, save_dir=Path('Results/baseline'))
+    np.savetxt('Data/predictions/baseline/y_pred_baseline.csv', y_pred, delimiter = ',')
 
 
 if __name__ == "__main__":

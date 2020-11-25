@@ -6,7 +6,7 @@ Contents:
 - Read data
 - Vector Autoregressive
 - Forecasting
-- Evaluation
+- Save predictions
 
 '''
 
@@ -15,7 +15,6 @@ import pandas as pd
 import joblib as joblib
 from pathlib import Path
 from statsmodels.tsa.api import VAR
-from evaluation import evaluate, evaluate_all
 from tqdm import tqdm
 
 
@@ -37,9 +36,6 @@ def main():
 
     pickle_path = Path('Data/serialized/x_test').resolve()
     test = pd.read_pickle(pickle_path)
-
-    observed = pd.read_csv(LOADDIR.joinpath('raw/train.csv'), header=0)
-    test_true = pd.read_csv(LOADDIR.joinpath('raw/test.csv'), header=0)
 
 
     ''' Vector Autoregressive '''
@@ -84,12 +80,10 @@ def main():
         pred = pred.append(pred_values[COLUMNS_TO_PREDICT], ignore_index=True)
 
 
-    ''' Evaluate '''
+    ''' Save predictions '''
 
-    y_true = test_true[pred.columns]
     y_pred = pred
-
-    evaluate_all(y_true, y_pred, Path('Results/var'))
+    np.savetxt('Data/predictions/var/y_pred_var.csv', y_pred, delimiter = ',')
 
 
 if __name__ == "__main__":

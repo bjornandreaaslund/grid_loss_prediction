@@ -7,7 +7,7 @@ Contents:
 - Feature importance
 - Hyperparameter optimization
 - Forecasting
-- Evaluation
+- Save predictions
 
 '''
 
@@ -17,7 +17,6 @@ import seaborn as sns
 import joblib as joblib
 import matplotlib.pyplot as plt
 from pathlib import Path
-from evaluation import evaluate, mean_absolute_percentage_error
 from sklearn.feature_selection import SelectFromModel
 from tqdm import tqdm
 import xgboost as xgb
@@ -65,12 +64,6 @@ def main():
     y_train_grid3 = pd.read_pickle(pickle_path)
     pickle_path = Path('Data/serialized/y_test_grid3').resolve()
     y_test_grid3 = pd.read_pickle(pickle_path)
-
-    # creates dataframes for evaluation
-    observed = pd.read_csv(loaddir.joinpath('raw/train.csv'), header=0)
-    test_true = pd.read_csv(loaddir.joinpath('raw/test.csv'), header=0)
-    y_true = test_true[columns_to_predict]
-    y_observed = observed[columns_to_predict][10000:]
 
     # scalers for inverse transform after predicting
     scaler_grid1 = joblib.load(savedir_models / 'scaler_grid1.sav')
@@ -293,15 +286,10 @@ def main():
         pred.append(pred_value)
 
 
-    ''' Evaluate '''
+    ''' Save predictions '''
 
     y_pred = scaler.inverse_transform(np.array(pred).reshape(-1, 1))
-    mae, rmse, mape = evaluate(np.array(y_observed[target_col]), np.array(y_true[target_col]), np.array(y_pred))
-
-    print("\nEvaluate...")
-    print("MAE:", mae)
-    print("RMSE:", rmse)
-    print("MAPE:", mape)
+    np.savetxt('Data/predictions/xgboost/y_pred_grid' + str(GRID_NUMBER+1) + '_xgb.csv',y_pred, delimiter = ',')
 
 
 if __name__ == "__main__":
