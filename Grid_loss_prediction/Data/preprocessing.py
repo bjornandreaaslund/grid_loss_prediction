@@ -26,13 +26,14 @@ from sklearn.experimental import enable_iterative_imputer
 from sklearn.impute import IterativeImputer
 from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.preprocessing import RobustScaler
+from feature_engineering import create_lag_features
 
 
 def main():
 
 
     ''' General Settings'''
-    
+
     pd.options.mode.chained_assignment = None
     loaddir = Path('Data/').resolve()
     savedir_log = Path('Log/').resolve()
@@ -86,7 +87,7 @@ def main():
 
     del prophet, seasonal
 
-    
+
     ''' Data cleaning '''
 
     print("\nData cleaning...")
@@ -118,7 +119,7 @@ def main():
     # remove wrong measurement from grid2-loss
     train['grid2-loss'][sensor_error_start:sensor_error_end] = np.nan
 
-    
+
     ''' Imputation '''
 
     print("\nImputing missing values...")
@@ -201,7 +202,7 @@ def main():
     pickle_path = Path('Data/serialized/processed_x_train_pickle')
     x_train.to_pickle(pickle_path)
 
-    
+
     ''' Scaling '''
 
     # we use robust scaler since we have some anomalies
@@ -244,11 +245,7 @@ def main():
     lags = [1 ,2 ,3 ,4, 5, 6]
     # we will keep the results in this dataframe
     data = pd.concat([x_train, x_test])
-    data_with_lag = data.copy()
-    for lag in lags:
-        for var in lag_variables:
-            data_with_lag[var+str(lag)] = data_with_lag[var].shift(lag*24)
-    data_with_lag = data_with_lag.dropna()
+    data_with_lag = create_lag_features(lags, lag_variables, data)
 
 
     ''' Shifting data '''
