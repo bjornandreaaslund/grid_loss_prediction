@@ -103,3 +103,37 @@ def mean_absolute_percentage_error(y_true, y_pred):
 def symmetric_mean_absolute_percentage_error(y_true, y_pred):
     y_true, y_pred = np.array(y_true), np.array(y_pred)
     return np.mean(np.abs(y_true - y_pred) / (np.abs(y_true) + np.abs(y_pred)))*200
+
+def main():
+    LOAD_DIR = Path('Data/').resolve()
+    SAVE_DIR = Path('Results/').resolve()
+    MODEL = 'V' # set the model to evaluate, N = nbeats, X = xgboost, V = var, B = baseline
+    COLUMNS_TO_PREDICT = ['grid1-loss', 'grid2-loss', 'grid3-loss']
+    observed = pd.read_csv(LOAD_DIR.joinpath('raw/train.csv'), header=0)
+    test_true = pd.read_csv(LOAD_DIR.joinpath('raw/test.csv'), header=0)
+    y_true = test_true[COLUMNS_TO_PREDICT]
+    y_observed = observed[COLUMNS_TO_PREDICT][10000:]
+
+    if MODEL == 'B':
+        pred = np.genfromtxt('Data/predictions/var/y_pred_baseline.csv', delimiter=',')
+        SAVE_DIR = SAVE_DIR.joinpath('baseline/')
+    elif MODEL == 'V':
+        grids = np.genfromtxt('Data/predictions/var/y_pred_var.csv', delimiter=',')
+        y_pred = pd.DataFrame(grids, columns = ['grid1-loss', 'grid2-loss', 'grid3-loss'])
+        SAVE_DIR = SAVE_DIR.joinpath('var/')
+    elif MODEL == 'X':
+        grid1 = np.genfromtxt('Data/predictions/xgboost/y_pred_grid1_xgb.csv', delimiter=',')
+        grid2 = np.genfromtxt('Data/predictions/xgboost/y_pred_grid2_xgb.csv', delimiter=',')
+        grid3 = np.genfromtxt('Data/predictions/xgboost/y_pred_grid3_xgb.csv', delimiter=',')
+        y_pred = pd.DataFrame({'grid1-loss':grid1, 'grid2-loss':grid2, 'grid3-loss':grid3})
+        SAVE_DIR = SAVE_DIR.joinpath('xgboost/')
+    elif MODEL == 'N':
+        grid1 = np.genfromtxt('Data/predictions/nbeats/y_pred_grid1_nbeats.csv', delimiter=',')
+        grid2 = np.genfromtxt('Data/predictions/nbeats/y_pred_grid2_nbeats.csv', delimiter=',')
+        grid3 = np.genfromtxt('Data/predictions/nbeats/y_pred_grid3_nbeats.csv', delimiter=',')
+        y_pred = pd.DataFrame({'grid1-loss':grid1, 'grid2-loss':grid2, 'grid3-loss':grid3})
+        SAVE_DIR = SAVE_DIR.joinpath('nbeats/')
+    evaluate_all(y_true, y_pred, SAVE_DIR)
+
+if __name__ == "__main__":
+    main()
