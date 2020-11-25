@@ -10,10 +10,9 @@ Contents:
 
 '''
 
-from pathlib import Path
-from nbeats_keras.model import NBeatsNet
-from sklearn.model_selection import train_test_split
-import pandas as pd
+# %% --------------------------------- Imports --------------------------------- #
+
+import os
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -22,271 +21,247 @@ import joblib as joblib
 from pathlib import Path
 from evaluation_metric import evaluate
 from tqdm import tqdm
-from evaluation import evaluate, mean_absolute_percentage_error
+
+from nbeats_keras.model import NBeatsNet
+
+# %% --------------------------------- General settings --------------------------------- #
+
 savedir_models = Path('Models/').resolve()
 loaddir = Path('Data/').resolve()
-import matplotlib.pyplot as plt
+forecast_length = 144 # 6 days
+lookback_windows = forecast_length*np.arange(1,5) # n*H where n is 1, 2, 3, 4
+input_dim=1 # the number of timeseries we want to forecast
+exo_dim=3 # the number of timeseries used to make a prediction, but will not be forecasted
+grid_number = 2 # select which grid to predict : 0 -> grid1, 1 -> grid2, 2 -> grid3
+columns_to_predict = ['grid1-loss', 'grid2-loss', 'grid3-loss']
+exo_dim=4
+exo1 = ['grid1-load', 'grid2-load', 'grid3-load'][grid_number]
+exo2 = ['grid1-temp', 'grid2_1-temp', 'grid3-temp'][grid_number]
+exo3 = 'holiday'
+exo4 = 'demand'
+target_col = columns_to_predict[grid_number] # select which column to predict
+training = False
+
+# %% ------------------------------- Read data ------------------------------- #
+
+# x-values
+pickle_path = Path('Data/serialized/x_train').resolve()
+X_train = pd.read_pickle(pickle_path)
+pickle_path = Path('Data/serialized/x_test').resolve()
+X_test = pd.read_pickle(pickle_path)
+
+# for evaluation
+observed = pd.read_csv(loaddir.joinpath('raw/train.csv'), header=0)
+test_true = pd.read_csv(loaddir.joinpath('raw/test.csv'), header=0)
+y_true = test_true[columns_to_predict]
+y_observed = observed[columns_to_predict][10000:]
+
+# scalers for inverse transform after predicting
+scaler_grid1 = joblib.load(savedir_models / 'scaler_grid1.sav')
+scaler_grid2 = joblib.load(savedir_models / 'scaler_grid2.sav')
+scaler_grid3 = joblib.load(savedir_models / 'scaler_grid3.sav')
+
+scaler = [scaler_grid1, scaler_grid2, scaler_grid3][grid_number] # select the scaler for the selected grid
+
+# %% ----------------------------- Transformation of data ----------------------------- #
+
+def get_x_y_data(df, backcast_length, forecast_length):
+    x = np.array([]).reshape(0, backcast_length)
+    y = np.array([]).reshape(0, forecast_length)
+
+    time_series = np.array(df[[target_col]])
+    time_series = time_series.reshape(time_series.shape[0])
+
+    time_series_cleaned_forlearning_x = np.zeros(
+        (time_series.shape[0] + 1 - (backcast_length + forecast_length), backcast_length))
+    time_series_cleaned_forlearning_y = np.zeros(
+        (time_series.shape[0] + 1 - (backcast_length + forecast_length), forecast_length))
+    for j in range(backcast_length, time_series.shape[0] + 1 - forecast_length):
+        time_series_cleaned_forlearning_x[j - backcast_length, :] = time_series[j - backcast_length:j]
+        time_series_cleaned_forlearning_y[j - backcast_length, :] = time_series[j: j + forecast_length]
+    x = np.vstack((x, time_series_cleaned_forlearning_x))
+    y = np.vstack((y, time_series_cleaned_forlearning_y))
+
+    return x.reshape((x.shape[0], x.shape[1], 1)), y.reshape((y.shape[0], y.shape[1], 1))
+
+def get_exo_var_data(df, backcast_length, forecast_length):
+    e1 = np.array([]).reshape(0, backcast_length)
+    e2 = np.array([]).reshape(0, backcast_length)
+    e3 = np.array([]).reshape(0, backcast_length)
+    e4 = np.array([]).reshape(0, backcast_length)
+
+    time_series_1 = np.array(df[[exo1]])
+    time_series_1 = time_series_1.reshape(len(time_series_1))
+    time_series_2 = np.array(df[[exo2]])
+    time_series_2 = time_series_2.reshape(len(time_series_2))
+    time_series_3 = np.array(df[[exo3]])
+    time_series_3 = time_series_3.reshape(len(time_series_3))
+    time_series_4 = np.array(df[[exo4]])
+    time_series_4 = time_series_4.reshape(len(time_series_4))
+
+    time_series_cleaned_forlearning_1 = np.zeros(
+        (time_series_1.shape[0] + 1 - (backcast_length + forecast_length), backcast_length))
+    time_series_cleaned_forlearning_2 = np.zeros(
+        (time_series_2.shape[0] + 1 - (backcast_length + forecast_length), backcast_length))
+    time_series_cleaned_forlearning_3 = np.zeros(
+        (time_series_3.shape[0] + 1 - (backcast_length + forecast_length), backcast_length))
+    time_series_cleaned_forlearning_4 = np.zeros(
+        (time_series_4.shape[0] + 1 - (backcast_length + forecast_length), backcast_length))
+    for j in range(backcast_length, time_series_1.shape[0] + 1 - forecast_length):
+        time_series_cleaned_forlearning_1[j - backcast_length, :] = time_series_1[j - backcast_length:j]
+        time_series_cleaned_forlearning_2[j - backcast_length, :] = time_series_2[j - backcast_length:j]
+        time_series_cleaned_forlearning_3[j - backcast_length, :] = time_series_3[j - backcast_length:j]
+        time_series_cleaned_forlearning_4[j - backcast_length, :] = time_series_4[j - backcast_length:j]
+    e1 = np.vstack((e1, time_series_cleaned_forlearning_1))
+    e2 = np.vstack((e2, time_series_cleaned_forlearning_2))
+    e3 = np.vstack((e3, time_series_cleaned_forlearning_3))
+    e4 = np.vstack((e4, time_series_cleaned_forlearning_4))
+
+    return e1, e2, e3, e4
+
+def get_data(df, backcast_length, forecast_length, mode = "train"):
+    x, y = get_x_y_data(df, backcast_length, forecast_length)
+    e1, e2, e3, e4 = get_exo_var_data(df, backcast_length, forecast_length)
+
+    e = np.concatenate((e1.reshape((e1.shape[0], e1.shape[1], 1)), e2.reshape((e2.shape[0], e2.shape[1], 1)), e3.reshape((e3.shape[0], e3.shape[1], 1)), e4.reshape((e4.shape[0], e4.shape[1], 1))), axis=-1)
+
+    if mode == "train":
+        return x[:90 * x.shape[0] // 100], e[:90 * x.shape[0] // 100], y[:90 * x.shape[0] // 100]
+    elif mode == "test":
+        return x[90 * x.shape[0] // 100:], e[90 * x.shape[0] // 100:], y[90 * x.shape[0] // 100:]
+    elif mode == "pred":
+        return x, e, y
+
+# %% ------------------------------- Training ------------------------------- #
+
+def get_metrics(y_true, y_hat):
+    error = np.mean(np.square(y_true - y_hat))
+    smape = np.mean(2 * np.abs(y_true - y_hat) / (np.abs(y_true) + np.abs(y_hat)))
+    return smape, error
+
+def ensure_results_dir():
+    if not os.path.exists('results/test'):
+        os.makedirs('results/test')
+
+def train_model(df, model: NBeatsNet, best_perf=np.inf, max_steps=10001, plot_results=100):
+    ensure_results_dir()
+    x_test, e_test, y_test = get_data(df, model.backcast_length, model.forecast_length, mode="test")
+
+    for step in range(max_steps):
+        x_train, e_train, y_train = get_data(df, model.backcast_length, model.forecast_length, mode="train")
+
+        model.train_on_batch([x_train, e_train], y_train)
+
+        if step % plot_results == 0:
+            print('step=', step)
+            model.save('results/n_beats_model_' + str(model.backcast_length) + str(step) + target_col + "_backcast_"  + '.h5')
+            predictions = model.predict([x_train, e_train])
+            validation_predictions = model.predict([x_test, e_test])
+
+            smape = get_metrics(y_test, validation_predictions)[0]
+            print('smape=', smape)
+            if smape < best_perf:
+                best_perf = smape
+                model.save('results/n_beats_model_ongoing_' + str(model.backcast_length)+ target_col + "_backcast_" + '.h5')
+
+            for k in range(model.input_dim):
+                plot_keras_model_predictions(model, False, step, x_train[0, :, k], y_train[0, :, k],predictions[0, :, k], axis=k)
+                plot_keras_model_predictions(model, True, step, x_test[0, :, k], y_test[0, :, k],validation_predictions[0, :, k], axis=k)
+
+    model.save('results/n_beats_model_' + target_col + '.h5')
+
+    predictions = model.predict([x_train, e_train])
+    validation_predictions = model.predict([x_test, e_test])
+
+    for k in range(model.input_dim):
+        plot_keras_model_predictions(model, False, max_steps, x_train[10, :, k], y_train[10, :, k],predictions[10, :, k], axis=k)
+        plot_keras_model_predictions(model, True, max_steps, x_test[10, :, k], y_test[10, :, k],validation_predictions[10, :, k], axis=k)
+
+    print('smape=', get_metrics(y_test, validation_predictions)[0])
+    print('error=', get_metrics(y_test, validation_predictions)[1])
 
 
-def create_data(time_series, forecast_length, backcast_length, point = True):
-    x = []
-    y = []
-    examples = len(time_series)-(backcast_length+forecast_length)
-    if point == False:
-        for i in range(examples):
-            x.append(np.array(time_series[i:i+backcast_length]))
-            y.append(np.array(time_series[i+backcast_length:i+backcast_length+forecast_length]))
-        x = np.array(x).reshape(examples,backcast_length, 1)
-        y = np.array(y).reshape(examples, forecast_length, 1)
-    if point == True:
-        for i in range(examples):
-            x.append(time_series[i:i+backcast_length])
-            y.append([i+backcast_length+forecast_length])
-        x = np.array(x).reshape(examples,backcast_length, 1)
-        y = np.array(y).reshape(examples, 1, 1)
-    return x, y
+def plot_keras_model_predictions(model, is_test, step, backcast, forecast, prediction, axis):
+    if is_test:
+        title = 'results/test/' + target_col + "_backcast_" +str(len(backcast)) +  '_step_' + str(step) + '_axis_' + str(axis) +  '.eps'
+    else:
+        title = 'results/' +  target_col + "_backcast_" +str(len(backcast)) + '_step_' + str(step) + '_axis_' + str(axis)  +'.eps'
+    nan_1 = np.empty(len(backcast))
+    nan_1[:] = np.nan
+    nan_2 = np.empty(len(prediction))
+    nan_2[:] = np.nan
+
+    observed = np.append(backcast, forecast)
+    predicted = np.append(nan_1, prediction)
+
+    data = pd.DataFrame({
+        'observed': observed,
+        'predicted': predicted
+    })
+
+    fig = sns.lineplot(data=data, dashes=False, palette='colorblind')
+    fig.set(ylabel="Grid loss")
+    fig.set(xlabel="Time")
+    fig.figure.savefig(title)
+    plt.close()
+
+if training: #takes the whole night
+    for backcast_length in lookback_windows:
+
+        model = NBeatsNet(input_dim=input_dim, exo_dim=exo_dim, backcast_length=backcast_length,
+                        forecast_length=144,stack_types=(NBeatsNet.GENERIC_BLOCK, NBeatsNet.GENERIC_BLOCK),
+                        nb_blocks_per_stack=2,thetas_dim=(4, 8), share_weights_in_stack=False,
+                        hidden_layer_units=128,nb_harmonics=10)
+
+        model.compile_model(loss='mae', learning_rate=1e-5)
+        train_model(df=X_train, model=model)
 
 
-def main():
 
-    # https://keras.io/layers/recurrent/
-    # Definition of the data. The problem to solve is to find f such as | f(x) - y | -> 0.
+# %% ------------------------------- Forecast ------------------------------- #
 
+print("\nForecast...")
 
-    ''' Read data '''
+pred = pd.DataFrame(columns = ['144', '288', '432', '576'])
 
-    observed = pd.read_csv(loaddir.joinpath('raw/train.csv'), header=0)
-    test_true = pd.read_csv(loaddir.joinpath('raw/test.csv'), header=0)
-    y_true = test_true[['grid1-loss']]
-    y_observed = observed[['grid1-loss']][10000:]
+model_144_grid =  NBeatsNet.load('nbeats_grid3_144_G.h5')
+model_288_grid =  NBeatsNet.load('nbeats_grid3_288_G.h5')
+model_432_grid =  NBeatsNet.load('nbeats_grid3_432_G.h5')
+model_576_grid =  NBeatsNet.load('nbeats_grid3_576_G.h5')
 
-    scaler = joblib.load(savedir_models / 'scaler_grid1.sav')
+models = [model_144_grid, model_288_grid, model_432_grid, model_576_grid]
 
-    pickle_path1 = Path('Data/serialized/x_train').resolve()
-    X_train = pd.read_pickle(pickle_path1)
-    x = np.array(X_train['grid1-loss'].head(-6*24))
-    exo = np.array(X_train['grid1-temp'].head(-6*24))
+for i in range(len(models)):
+    model = models[i]
+    forecast_data = pd.concat([X_train.tail(lookback_windows[i]+forecast_length-1), X_test])
+    x_pred, e_pred, y_pred = get_data(forecast_data, lookback_windows[i], forecast_length, mode="pred")
+    predictions = []
+    for j in tqdm(range(x_pred.shape[0])):
+        x_step = np.array([x_pred[j]])
+        e_step = np.array([e_pred[j]])
+        y_step = np.array([y_pred[j]])
+        result = models[i].predict([x_step, e_step])
+        predictions.append(result[:,:,-1][:,-1]) # only append the last prediction
+        model.fit([x_step, e_step], y_step, epochs=40, batch_size=1, verbose=0)
+    pred[str(lookback_windows[i])] = predictions
 
-    pickle_path2 = Path('Data/serialized/y_train_grid1').resolve()
-    y_train = pd.read_pickle(pickle_path2)
-    y = np.array(y_train.head(-6*24))
+# %% ------------------------------- Evaluation ------------------------------- #
 
-    num_samples = X_train.shape[0]-6*24
-    backcast_length, input_dim, output_dim = 6*24, 1, 6*24
+# selects the mean
+print(np.array(pred).shape)
+mean = pred.mean(axis=1) # axis=0 to find the mean of each row
+print(np.array(mean).shape)
+print(mean)
+print(np.array(y_observed[target_col]).shape)
 
-    x = create_data(x, output_dim, backcast_length, False)
-    exo = create_data(exo, output_dim, backcast_length, False)
-    y = create_data(y, output_dim, backcast_length, False)
-
-
-    ''' Create and train the model '''
-
-    # Definition of the model.
-    model = NBeatsNet(backcast_length=backcast_length, forecast_length=output_dim, exo_dim=1,
-                      stack_types=(NBeatsNet.GENERIC_BLOCK, NBeatsNet.GENERIC_BLOCK), nb_blocks_per_stack=2,
-                      thetas_dim=(4, 4), share_weights_in_stack=True, hidden_layer_units=64)
-
-    # Definition of the objective function and the optimizer.
-    model.compile_model(loss='mae', learning_rate=1e-5)
-
-
-    # Split data into training and testing datasets.
-    c = num_samples // 10
-    x_train, exo_train, y_train, x_val, exo_val, y_val = x[c:], exo[c:], y[c:], x[:c], exo[:c], y[:c]
-    print(x_train)
-    print(exo_train)
-    print(exo_val)
-
-    # Train the model.
-    model.fit([x_train, exo_train], y_train, validation_data=([x_val, exo_val], y_val), epochs=20, batch_size=128)
-
-    # Save the model for later.
-    model.save('n_beats_model.h5')
-
-
-    ''' Make predictions '''
-
-    # Predict on the testing set.
-    pickle_path = Path('Data/serialized/x_test').resolve()
-    test = pd.read_pickle(pickle_path)
-    X_test = pd.concat([X_train['grid1-loss'].tail(18*24), test['grid1-loss'].head(-18*24)])
-    EXO_test = pd.concat([X_train['grid1-temp'].tail(18*24), test['grid1-temp'].head(-18*24)])
-
-    predictions = model.predict([np.array(X_test).reshape(4369, 1, 1), np.array(EXO_test).reshape(4369, 1, 1)])
-    predictions = predictions[:,0, 0]
-    y_pred = scaler.inverse_transform(np.array(predictions).reshape(-1, 1))
-
-
-    ''' Evaluate predictions '''
-
-    mae, rmse, mape, smape = evaluate(np.array(y_observed), np.array(y_true), y_pred)
-    # Load the model.
-
-    print("MAE:", mae)
-    print("RMSE:", rmse)
-    print("MAPE:", mape)
-    print("sMAPE", smape)
-
-
-def demo():
-    # https://keras.io/layers/recurrent/
-    # Definition of the data. The problem to solve is to find f such as | f(x) - y | -> 0.
-    ''' General settings '''
-
-    savedir_models = Path('Models/').resolve()
-    loaddir = Path('Data/').resolve()
-    nobs = 144 # 6 days
-    lookback_window = 24*90 # 90 days
-    grid_number = 0 # select which grid to predict : 0 -> grid1, 1 -> grid2, 2 -> grid3
-    columns_to_predict = ['grid1-loss', 'grid2-loss', 'grid3-loss']
-    target_col = columns_to_predict[grid_number] # select which column to predict
-
-    ''' Read data '''
-
-    # x-values
-    pickle_path = Path('Data/serialized/x_train_with_lag').resolve()
-    train = pd.read_pickle(pickle_path)
-    pickle_path = Path('Data/serialized/x_test_with_lag').resolve()
-    test = pd.read_pickle(pickle_path)
-    X_train = train['grid1-loss']
-    X_test = test['grid1-loss']
-
-    #y-values
-    pickle_path = Path('Data/serialized/y_train_grid1').resolve()
-    y_train_grid1 = pd.read_pickle(pickle_path)
-    pickle_path = Path('Data/serialized/y_test_grid1').resolve()
-    y_test_grid1 = pd.read_pickle(pickle_path)
-    pickle_path = Path('Data/serialized/y_train_grid2').resolve()
-    y_train_grid2 = pd.read_pickle(pickle_path)
-    pickle_path = Path('Data/serialized/y_test_grid2').resolve()
-    y_test_grid2 = pd.read_pickle(pickle_path)
-    pickle_path = Path('Data/serialized/y_train_grid3').resolve()
-    y_train_grid3 = pd.read_pickle(pickle_path)
-    pickle_path = Path('Data/serialized/y_test_grid3').resolve()
-    y_test_grid3 = pd.read_pickle(pickle_path)
-
-    # creates dataframes for evaluation
-    observed = pd.read_csv(loaddir.joinpath('raw/train.csv'), header=0)
-    test_true = pd.read_csv(loaddir.joinpath('raw/test.csv'), header=0)
-    y_true = test_true[columns_to_predict]
-    y_observed = observed[columns_to_predict][10000:]
-
-    # scalers for inverse transform after predicting
-    scaler_grid1 = joblib.load(savedir_models / 'scaler_grid1.sav')
-    scaler_grid2 = joblib.load(savedir_models / 'scaler_grid2.sav')
-    scaler_grid3 = joblib.load(savedir_models / 'scaler_grid3.sav')
-
-    y_train = [y_train_grid1, y_train_grid2, y_train_grid3][grid_number] # select the y_train for the selected grid
-    y_test = [y_test_grid1, y_test_grid2, y_test_grid3][grid_number]
-    scaler = [scaler_grid1, scaler_grid2, scaler_grid3][grid_number] # select the scaler for the selected grid
-
-    num_samples = 10754
-    time_steps, input_dim, output_dim = 1, 1, 1
-
-    def create_data(time_series, forecast_length, backcast_length, point = True):
-        x = []
-        y = []
-        examples = len(time_series)-(backcast_length+forecast_length)
-        if point == False:
-            for i in range(examples):
-                x.append(time_series[i:i+backcast_length])
-                y.append(time_series[i+backcast_length:i+backcast_length+forecast_length])
-            x = np.array(x).reshape(examples,backcast_length, 1)
-            y = np.array(y).reshape(examples, forecast_length, 1)
-        if point == True:
-            for i in range(examples):
-                x.append(time_series[i:i+backcast_length])
-                y.append([i+backcast_length+forecast_length])
-            x = np.array(x).reshape(examples,backcast_length, 1)
-            y = np.array(y).reshape(examples, 1, 1)
-        return x, y
-
-    def create_test_data(time_series, backcast_length):
-        x = []
-        examples = len(time_series)-(backcast_length)
-        for i in range(examples):
-            x.append(time_series[i:i+backcast_length])
-        x = np.array(x).reshape(examples,backcast_length, 1)
-        return x
-    forecast_length, backcast_length = 1, 24
-    x, y = create_data(np.array(y_train_grid1), 1, 24, point=False)
-    print(x.shape)
-    print(y.shape)
-
-    # Split data into training and testing datasets.
-    c = x.shape[0] // 10
-    x_train, y_train, x_test, y_test = x[c:], y[c:], x[:c], y[:c]
-
-    # Definition of the model.
-    #model = NBeatsNet(backcast_length=backcast_length, forecast_length=forecast_length,
-    #                  stack_types=(NBeatsNet.GENERIC_BLOCK, NBeatsNet.GENERIC_BLOCK), nb_blocks_per_stack=2,
-    #                  thetas_dim=(4, 4), share_weights_in_stack=True, hidden_layer_units=64)
-
-    # Definition of the objective function and the optimizer.
-    #model.compile_model(loss='mae', learning_rate=1e-5)
-
-    # Train the model.
-    #model.fit(x_train, y_train, validation_data=(x_test, y_test), epochs=10, batch_size=128)
-
-    #__________________________________________
-    y_train = [y_train_grid1, y_train_grid2, y_train_grid3][grid_number] # select the y_train for the selected grid
-    lookback_window = 24*90 # 90 days
-    y_test = [y_test_grid1, y_test_grid2, y_test_grid3][grid_number]
-    exo = pd.concat([train, test])[['grid1-load']].tail(X_test.shape[0]+lookback_window)
-    timeseries = pd.concat([y_train, y_test]).tail(X_test.shape[0]+lookback_window)
-
-    forecast_length = 6*24
-    backcast_length = 6*24
-    output_dim = 1
-
-    exo_test_x = create_test_data(exo.tail(X_test.shape[0]+backcast_length), backcast_length)
-    test_x = create_test_data(timeseries.tail(X_test.shape[0]+backcast_length), backcast_length)
-
-    pred = []
-
-    print(exo_test_x.shape)
-    print(test_x.shape)
-    print(len(X_test))
-
-
-    print(len(timeseries))
-
-    print(len(timeseries)-24*90)
-
-
-    for i in tqdm(range(len(timeseries)-lookback_window)):
-        # fit new model on the sliding window
-        # the model does not handle conastant values so we can not use binary variable
-        # if they are constant in the forecast window
-        # important to have the sesonal time series, but check that they are not constant
-        forecast_slice = np.array(timeseries.iloc[i:lookback_window+backcast_length+i-1]).reshape(ookback_window+backcast_length-1, 1, 1)
-        exo_slice = np.array(exo.iloc[i:lookback_window+backcast_length+i-1]).reshape(ookback_window+backcast_length-1, 1, 1)
-        x, y = create_data(forecast_slice, forecast_length, backcast_length, point=True)
-        exo_x, exo_y = create_data(exo_slice, forecast_length, backcast_length, point=True) # do not need exo_y
-
-        if (i%24 == 0):
-            model = NBeatsNet(backcast_length=backcast_length, exo_dim=1, forecast_length=output_dim,
-                              stack_types=(NBeatsNet.GENERIC_BLOCK, NBeatsNet.GENERIC_BLOCK), nb_blocks_per_stack=2,
-                              thetas_dim=(4, 4), share_weights_in_stack=True, hidden_layer_units=64)
-            model.compile_model(loss='mae', learning_rate=1e-5)
-
-            # trains one model each day
-            model.fit([x, exo_x], y, epochs=10, batch_size=128)
-
-
-        arr1 = np.array([test_x[i][:][:]])
-        arr2 = np.array([exo_test_x[i][:][:]])
-        pred_value = model.predict([arr1, arr2])
-        print(pred_value[:,0, 0])
-        pred.append(pred_value[:,0, 0])
-
-    ''' Evaluate '''
-    y_pred = scaler.inverse_transform(np.array(pred).reshape(-1, 1))
-    mae, rmse, mape = evaluate(np.array(y_observed[target_col]), np.array(y_true[target_col]), np.array(y_pred))
-    print("\nEvaluate...")
-    print("MAE:", mae)
-    print("RMSE:", rmse)
-    print("MAPE:", mape)
+print("\nEvaluate...")
+y_pred = scaler.inverse_transform(np.array(mean).reshape(-1, 1))
+np.savetxt("y_pred_grid3_nbeats.csv", y_pred, delimiter=",")
+mae, rmse, mape, smape = evaluate(np.array(y_observed[target_col]), np.array(y_true[target_col]), np.array(y_pred))
+print("MAE:", mae)
+print("RMSE:", rmse)
+print("MAPE:", mape)
+print("SMAPE", smape)
 
 from nbeats_keras.model import NBeatsNet
 

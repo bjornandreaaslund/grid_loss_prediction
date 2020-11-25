@@ -34,13 +34,13 @@ def main():
 
     ''' General settings '''
 
-    savedir_models = Path('Models/').resolve()
-    loaddir = Path('Data/').resolve()
-    nobs = 144 # 6 days
-    lookback_window = 24*90 # 90 days
-    grid_number = 1 # select which grid to predict : 0 -> grid1, 1 -> grid2, 2 -> grid3
-    columns_to_predict = ['grid1-loss', 'grid2-loss', 'grid3-loss']
-    target_col = columns_to_predict[grid_number] # select which column to predict
+    SAVEDIR_MODELS = Path('Models/').resolve()
+    LOADDIR = Path('Data/').resolve()
+    NOBS = 144 # 6 days
+    LOOKBACK_WINDOW = 24*90 # 90 days
+    GRID_NUMBER = 1 # select which grid to predict : 0 -> grid1, 1 -> grid2, 2 -> grid3
+    COLUMNS_TO_PREDICT = ['grid1-loss', 'grid2-loss', 'grid3-loss']
+    TARGET_COL = COLUMNS_TO_PREDICT[GRID_NUMBER] # select which column to predict
     MAPE = make_scorer(mean_absolute_percentage_error, greater_is_better=False)
 
 
@@ -77,9 +77,9 @@ def main():
     scaler_grid2 = joblib.load(savedir_models / 'scaler_grid2.sav')
     scaler_grid3 = joblib.load(savedir_models / 'scaler_grid3.sav')
 
-    y_train = [y_train_grid1, y_train_grid2, y_train_grid3][grid_number] # select the y_train for the selected grid
-    y_test = [y_test_grid1, y_test_grid2, y_test_grid3][grid_number]
-    scaler = [scaler_grid1, scaler_grid2, scaler_grid3][grid_number] # select the scaler for the selected grid
+    y_train = [y_train_grid1, y_train_grid2, y_train_grid3][GRID_NUMBER] # select the y_train for the selected grid
+    y_test = [y_test_grid1, y_test_grid2, y_test_grid3][GRID_NUMBER]
+    scaler = [scaler_grid1, scaler_grid2, scaler_grid3][GRID_NUMBER] # select the scaler for the selected grid
 
 
     ''' Feature importance '''
@@ -262,9 +262,9 @@ def main():
 
     print("\nForecast...")
     # we will forecast 6 days ahead, and fit the model on all available data up to this point
-    x_forecast = pd.concat([X_train.tail(lookback_window+nobs), X_test])
+    x_forecast = pd.concat([X_train.tail(LOOKBACK_WINDOW+NOBS), X_test])
 
-    y_forecast = pd.concat([y_train.tail(lookback_window+nobs), y_test])
+    y_forecast = pd.concat([y_train.tail(LOOKBACK_WINDOW+NOBS), y_test])
 
     pred = []
 
@@ -273,8 +273,8 @@ def main():
         # the model does not handle conastant values so we can not use binary variable
         # if they are constant in the forecast window
         # important to have the sesonal time series, but check that they are not constant
-        x_forecast_slice = np.array(x_forecast.iloc[i:lookback_window+i])
-        y_forecast_slice = np.array(y_forecast.iloc[i:lookback_window+i])
+        x_forecast_slice = np.array(x_forecast.iloc[i:LOOKBACK_WINDOW+i])
+        y_forecast_slice = np.array(y_forecast.iloc[i:LOOKBACK_WINDOW+i])
 
         if (i%24 == 0):
             xg_reg = xgb.XGBRegressor(orobjective ='reg:squarederror',
