@@ -1,3 +1,7 @@
+"""
+This module evaluates the model defined in the main().
+"""
+
 from typing import Any, List, Tuple, Union
 import numpy as np
 from numpy.lib.format import header_data_from_array_1_0

@@ -1,4 +1,6 @@
 '''
+This module performs all of the preprocessing and the creation of scaler models.
+The preprocessed data is saved in Data/serialized/.
 Contents:
 
 - Imports

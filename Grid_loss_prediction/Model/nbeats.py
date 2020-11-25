@@ -1,4 +1,7 @@
 '''
+This module creates a N-BEATS model and trains the model.
+An ensemble of models is then used to create a prediction, and the predictions are saved in Data/predictions/nbeats/.
+
 Contents:
 
 - General settings

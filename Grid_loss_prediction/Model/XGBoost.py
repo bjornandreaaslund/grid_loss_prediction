@@ -1,4 +1,7 @@
 '''
+This module creates a XGBoost model, optimize the hyperparameters, and trains the model.
+The model is then used to create a prediction, and the predictions are saved in Data/predictions/xgboost/.
+
 Contents:
 
 - Imports

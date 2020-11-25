@@ -1,4 +1,7 @@
 '''
+This module creates a baseline model and forecasts the test data.
+The predictions are saved in Data/predictions/baseline/.
+
 Contents:
 
 - Imports

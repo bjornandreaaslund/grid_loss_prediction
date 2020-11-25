@@ -1,4 +1,7 @@
 '''
+This module creates a VAR model and forecasts the test data.
+The predictions are saved in Data/predictions/var/.
+
 Contents:
 
 - Imports
