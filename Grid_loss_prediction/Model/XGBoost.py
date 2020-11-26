@@ -69,9 +69,9 @@ def main():
     y_test_grid3 = pd.read_pickle(pickle_path)
 
     # scalers for inverse transform after predicting
-    scaler_grid1 = joblib.load(savedir_models / 'scaler_grid1.sav')
-    scaler_grid2 = joblib.load(savedir_models / 'scaler_grid2.sav')
-    scaler_grid3 = joblib.load(savedir_models / 'scaler_grid3.sav')
+    scaler_grid1 = joblib.load(SAVEDIR_MODELS / 'scalers/scaler_grid1.sav')
+    scaler_grid2 = joblib.load(SAVEDIR_MODELS / 'scalers/scaler_grid2.sav')
+    scaler_grid3 = joblib.load(SAVEDIR_MODELS / 'scalers/scaler_grid3.sav')
 
     y_train = [y_train_grid1, y_train_grid2, y_train_grid3][GRID_NUMBER] # select the y_train for the selected grid
     y_test = [y_test_grid1, y_test_grid2, y_test_grid3][GRID_NUMBER]

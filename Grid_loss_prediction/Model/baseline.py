@@ -22,21 +22,19 @@ def main():
 
     '''General settings'''
 
-    savedir_models = Path('Models/').resolve()
-    loaddir = Path('Data/').resolve()
-    nobs = 144 # 6 days
-    lookback_window = 7320 # 180 days
-    columns_to_predict = ['grid1-loss', 'grid2-loss', 'grid3-loss']
+    LOADDIR = Path('Data/').resolve()
+    NOBS = 144 # 6 days
+    COLUMNS_TO_PREDICT = ['grid1-loss', 'grid2-loss', 'grid3-loss']
 
 
     '''Read data'''
 
-    train = pd.read_csv(loaddir.joinpath('raw/train.csv'), header=0)
-    test = pd.read_csv(loaddir.joinpath('raw/test.csv'), header=0)
+    train = pd.read_csv(LOADDIR.joinpath('raw/train.csv'), header=0)
+    test = pd.read_csv(LOADDIR.joinpath('raw/test.csv'), header=0)
 
-    frames = [train.tail(24+nobs), test] # we will forecast 6 days ahead, and fit the model on all available data up to this point
+    frames = [train.tail(24+NOBS), test] # we will forecast 6 days ahead, and fit the model on all available data up to this point
     df_test = pd.concat(frames)
-    y_pred = df_test[columns_to_predict].head(test.shape[0])
+    y_pred = df_test[COLUMNS_TO_PREDICT].head(test.shape[0])
 
     '''Save predictions'''
 

@@ -35,10 +35,10 @@ def main():
     EXO_DIM=4 # the number of timeseries used to make a prediction, but will not be forecasted
     GRID_NUMBER = 2 # select which grid to predict : 0 -> grid1, 1 -> grid2, 2 -> grid3
     COLUMNS_TO_PREDICT = ['grid1-loss', 'grid2-loss', 'grid3-loss']
-    exo1 = ['grid1-load', 'grid2-load', 'grid3-load'][GRID_NUMBER]
-    exo2 = ['grid1-temp', 'grid2_1-temp', 'grid3-temp'][GRID_NUMBER]
-    exo3 = 'holiday'
-    exo4 = 'demand'
+    EXO1 = ['grid1-load', 'grid2-load', 'grid3-load'][GRID_NUMBER]
+    EXO2 = ['grid1-temp', 'grid2_1-temp', 'grid3-temp'][GRID_NUMBER]
+    EXO3 = 'holiday'
+    EXO4 = 'demand'
     TARGET_COL = COLUMNS_TO_PREDICT[GRID_NUMBER] # select which column to predict
     TRAINING = False
 
@@ -57,9 +57,9 @@ def main():
     y_observed = observed[COLUMNS_TO_PREDICT][10000:]
 
     # scalers for inverse transform after predicting
-    scaler_grid1 = joblib.load(SAVEDIR_MODELS / 'scaler_grid1.sav')
-    scaler_grid2 = joblib.load(SAVEDIR_MODELS / 'scaler_grid2.sav')
-    scaler_grid3 = joblib.load(SAVEDIR_MODELS / 'scaler_grid3.sav')
+    scaler_grid1 = joblib.load(SAVEDIR_MODELS / 'scalers/scaler_grid1.sav')
+    scaler_grid2 = joblib.load(SAVEDIR_MODELS / 'scalers/scaler_grid2.sav')
+    scaler_grid3 = joblib.load(SAVEDIR_MODELS / 'scalers/scaler_grid3.sav')
 
     scaler = [scaler_grid1, scaler_grid2, scaler_grid3][GRID_NUMBER] # select the scaler for the selected grid
 
@@ -90,13 +90,13 @@ def main():
         e3 = np.array([]).reshape(0, backcast_length)
         e4 = np.array([]).reshape(0, backcast_length)
 
-        time_series_1 = np.array(df[[exo1]])
+        time_series_1 = np.array(df[[EXO1]])
         time_series_1 = time_series_1.reshape(len(time_series_1))
-        time_series_2 = np.array(df[[exo2]])
+        time_series_2 = np.array(df[[EXO2]])
         time_series_2 = time_series_2.reshape(len(time_series_2))
-        time_series_3 = np.array(df[[exo3]])
+        time_series_3 = np.array(df[[EXO3]])
         time_series_3 = time_series_3.reshape(len(time_series_3))
-        time_series_4 = np.array(df[[exo4]])
+        time_series_4 = np.array(df[[EXO4]])
         time_series_4 = time_series_4.reshape(len(time_series_4))
 
         time_series_cleaned_forlearning_1 = np.zeros(
@@ -223,10 +223,10 @@ def main():
 
     pred = pd.DataFrame(columns = ['144', '288', '432', '576'])
 
-    model_144_grid =  NBeatsNet.load('nbeats_grid3_144_G.h5')
-    model_288_grid =  NBeatsNet.load('nbeats_grid3_288_G.h5')
-    model_432_grid =  NBeatsNet.load('nbeats_grid3_432_G.h5')
-    model_576_grid =  NBeatsNet.load('nbeats_grid3_576_G.h5')
+    model_144_grid =  NBeatsNet.load('Models/nbeats/nbeats_grid3_144_G.h5')
+    model_288_grid =  NBeatsNet.load('Models/nbeats/nbeats_grid3_288_G.h5')
+    model_432_grid =  NBeatsNet.load('Models/nbeats/nbeats_grid3_432_G.h5')
+    model_576_grid =  NBeatsNet.load('Models/nbeats/nbeats_grid3_576_G.h5')
 
     models = [model_144_grid, model_288_grid, model_432_grid, model_576_grid]
 
@@ -241,15 +241,15 @@ def main():
             y_step = np.array([y_pred[j]])
             result = models[i].predict([x_step, e_step])
             predictions.append(result[:,:,-1][:,-1]) # only append the last prediction
-            model.fit([x_step, e_step], y_step, epochs=40, batch_size=1, verbose=0)
+            model.fit([x_step, e_step], y_step, epochs=20, batch_size=1, verbose=0)
         pred[str(LOOKBACK_WINDOWS[i])] = predictions
 
     ''' Save predictions '''
 
-    np.savetxt('Data/predictions/nbeats/y_pred_grid_' + str(GRID_NUMBER+1) + '_nbeats_allmodels.csv', pred, delimiter = ',')
+    np.savetxt('Data/predictions/nbeats/y_pred_grid' + str(GRID_NUMBER+1) + '_nbeats_allmodels.csv', pred, delimiter = ',')
     # the ensemble selects the mean
     mean = pred.mean(axis=1) # axis=0 to find the mean of each row
-    np.savetxt('Data/predictions/nbeats/y_pred_grid_' + str(GRID_NUMBER+1) + '_nbeats.csv', mean, delimiter = ',')
+    np.savetxt('Data/predictions/nbeats/y_pred_grid' + str(GRID_NUMBER+1) + '_nbeats.csv', mean, delimiter = ',')
 
 if __name__ == '__main__':
     main()

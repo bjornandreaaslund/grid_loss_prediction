@@ -37,19 +37,12 @@ def main():
     ''' General Settings'''
 
     pd.options.mode.chained_assignment = None
-    loaddir = Path('Data/').resolve()
-    savedir_log = Path('Log/').resolve()
-    savedir_models = Path('Models/').resolve()
-    savedir_meta = Path('Data/meta/').resolve()
-    if not os.path.exists(savedir_log):
-        os.mkdir(os.getcwd() + savedir_log)
-    if not os.path.exists(savedir_meta):
-        os.mkdir(os.path.join(os.getcwd(), savedir_meta))
-
+    LOADDIR = Path('Data/').resolve()
+    SAVEDIR_MODELS = Path('Models/').resolve()
 
     ''' Read data and general settings '''
 
-    df_columns = {  'Grid_data' : ['Unnamed: 0', 'demand', 'grid1-load', 'grid1-loss','grid1-temp', 'grid2-load', 'grid2-loss','grid2_1-temp',
+    DF_COLUMNS = {  'Grid_data' : ['Unnamed: 0', 'demand', 'grid1-load', 'grid1-loss','grid1-temp', 'grid2-load', 'grid2-loss','grid2_1-temp',
                                     'grid2_2-temp', 'grid3-load', 'grid3-loss', 'grid3-temp', 'has incorrect data'],
                     'Prophet' : ['grid1-loss-prophet-daily', 'grid1-loss-prophet-pred', 'grid1-loss-prophet-trend', 'grid1-loss-prophet-weekly',
                                 'grid1-loss-prophet-yearly', 'grid2-loss-prophet-daily', 'grid2-loss-prophet-pred','grid2-loss-prophet-trend',
@@ -62,30 +55,30 @@ def main():
                 }
 
     # grid 3 has no values before this index and we do not want to impute all these values
-    start_index_grid3 = 6622
+    START_INDEX_GRID3 = 6622
 
     # grid 2 loss has wrong measurements between these indexes, and that value will not be used
-    sensor_error_start = 1079
-    sensor_error_end = 2592
+    SENSOR_ERROR_START = 1079
+    SENSOR_ERROR_END = 2592
 
     # days ahead to forecast
-    forecast_window = 6*24
+    FORECAST_WINDOW = 6*24
 
-    train = pd.read_csv(loaddir.joinpath('raw/train.csv'), header=0)
-    test = pd.read_csv(loaddir.joinpath('raw/test.csv'), header=0)
+    train = pd.read_csv(LOADDIR.joinpath('raw/train.csv'), header=0)
+    test = pd.read_csv(LOADDIR.joinpath('raw/test.csv'), header=0)
 
 
     ''' Grouping data and saving the in Data/processed '''
 
-    grid_data = train[df_columns['Grid_data']]
+    grid_data = train[DF_COLUMNS['Grid_data']]
     grid_data.rename(columns={'Unnamed: 0': 'timestamp'}, inplace=True)
-    grid_data.to_csv(loaddir.joinpath('processed/grid_data.csv'))
+    grid_data.to_csv(LOADDIR.joinpath('processed/grid_data.csv'))
 
-    prophet = train[df_columns['Prophet']]
-    prophet.to_csv(loaddir.joinpath('processed/prophet_data.csv'))
+    prophet = train[DF_COLUMNS['Prophet']]
+    prophet.to_csv(LOADDIR.joinpath('processed/prophet_data.csv'))
 
-    seasonal = train[df_columns['Seasonal']]
-    seasonal.to_csv(loaddir.joinpath('processed/seasonal_data.csv'))
+    seasonal = train[DF_COLUMNS['Seasonal']]
+    seasonal.to_csv(LOADDIR.joinpath('processed/seasonal_data.csv'))
 
     del prophet, seasonal
 
@@ -96,7 +89,7 @@ def main():
     C_to_K = 273
 
     # check that the temerature is between 223 and 323
-    for temp in df_columns['Temperature']:
+    for temp in DF_COLUMNS['Temperature']:
         print("Number of measurments with temerature above 323 K for " + temp + " :" + str(train[train[temp] > 50+C_to_K].shape[0]))
         print("Number of measurments with temerature below 223 K for " + temp + " :" + str(train[train[temp] < C_to_K-50].shape[0])+ "\n")
 
@@ -119,7 +112,7 @@ def main():
     train['grid3-loss'].replace(0.0,np.NaN, inplace=True)
 
     # remove wrong measurement from grid2-loss
-    train['grid2-loss'][sensor_error_start:sensor_error_end] = np.nan
+    train['grid2-loss'][SENSOR_ERROR_START:SENSOR_ERROR_END] = np.nan
 
 
     ''' Imputation '''
@@ -139,7 +132,7 @@ def main():
     corr = {}
     for nancol in nancols:
         corr.update({nancol : pd.DataFrame(columns=['c'])})
-        for col in df_columns['Grid_data'][1:-1] + df_columns['Seasonal']:
+        for col in DF_COLUMNS['Grid_data'][1:-1] + DF_COLUMNS['Seasonal']:
             corr[nancol].loc[col, 'c'] = np.abs(train[nancol].corr(train[col]))
         corrcol = list(corr[nancol][corr[nancol].c > t].index)
         if len(corrcol) > 1:
@@ -168,8 +161,8 @@ def main():
     for col in nancols:
         if (col in corr) and (col == "grid3-loss" or col == "grid3-load"):
             print("Imputation will be done with ExtraTreesRegressor for: " + col)
-            imputed_rows += train[col][start_index_grid3:].index[train[col][start_index_grid3:].apply(np.isnan)].to_list()
-            train[col][start_index_grid3:] = pd.Series(IterativeImputer(ExtraTreesRegressor(n_estimators=30, min_samples_split=0.05, n_jobs = -1)).fit_transform(train[corr[col]].iloc[start_index_grid3:,] )[:,0]).copy(deep=True)
+            imputed_rows += train[col][START_INDEX_GRID3:].index[train[col][START_INDEX_GRID3:].apply(np.isnan)].to_list()
+            train[col][START_INDEX_GRID3:] = pd.Series(IterativeImputer(ExtraTreesRegressor(n_estimators=30, min_samples_split=0.05, n_jobs = -1)).fit_transform(train[corr[col]].iloc[START_INDEX_GRID3:,] )[:,0]).copy(deep=True)
         elif col in corr:
             print("Imputation will be done with ExtraTreesRegressor for: " + col)
             imputed_rows += train[col].index[train[col].apply(np.isnan)].to_list()
@@ -198,8 +191,8 @@ def main():
         print(index_range)
 
     # data which will be used in the training and testing
-    x_train = train[df_columns['Grid_data'][1:-1] + df_columns['Seasonal']]
-    x_test = test[df_columns['Grid_data'][1:-1] + df_columns['Seasonal']]
+    x_train = train[DF_COLUMNS['Grid_data'][1:-1] + DF_COLUMNS['Seasonal']]
+    x_test = test[DF_COLUMNS['Grid_data'][1:-1] + DF_COLUMNS['Seasonal']]
 
     pickle_path = Path('Data/serialized/processed_x_train_pickle')
     x_train.to_pickle(pickle_path)
@@ -212,28 +205,28 @@ def main():
     print('\nScaling and desesonalizing...')
 
     scaler_train = RobustScaler().fit(x_train)
-    scaler_filename = "scaler_train.sav"
-    joblib.dump(scaler_train, savedir_models / scaler_filename)
-    scaler_train = joblib.load(savedir_models / scaler_filename)
+    scaler_filename = "scalers/scaler_train.sav"
+    joblib.dump(scaler_train, SAVEDIR_MODELS / scaler_filename)
+    scaler_train = joblib.load(SAVEDIR_MODELS / scaler_filename)
     x_train[x_train.columns] = scaler_train.transform(x_train)
 
     scaler_test = RobustScaler().fit(x_test)
-    scaler_filename = "scaler_test.sav"
-    joblib.dump(scaler_test, savedir_models / scaler_filename)
-    scaler_test = joblib.load(savedir_models / scaler_filename)
+    scaler_filename = "scalers/scaler_test.sav"
+    joblib.dump(scaler_test, SAVEDIR_MODELS / scaler_filename)
+    scaler_test = joblib.load(SAVEDIR_MODELS / scaler_filename)
 
     # creates scalers for scaling back predictions for each of the grids
     scaler_1 = RobustScaler().fit(x_test["grid1-loss"].values.reshape(-1, 1))
-    scaler_grid1 = "scaler_grid1.sav"
-    joblib.dump(scaler_1, savedir_models / scaler_grid1)
+    scaler_grid1 = "scalers/scaler_grid1.sav"
+    joblib.dump(scaler_1, SAVEDIR_MODELS / scaler_grid1)
 
     scaler_2 = RobustScaler().fit(x_test["grid2-loss"].values.reshape(-1, 1))
-    scaler_grid2 = "scaler_grid2.sav"
-    joblib.dump(scaler_2, savedir_models / scaler_grid2)
+    scaler_grid2 = "scalers/scaler_grid2.sav"
+    joblib.dump(scaler_2, SAVEDIR_MODELS / scaler_grid2)
 
     scaler_3 = RobustScaler().fit(x_test["grid3-loss"].values.reshape(-1, 1))
-    scaler_grid3 = "scaler_grid3.sav"
-    joblib.dump(scaler_3, savedir_models / scaler_grid3)
+    scaler_grid3 = "scalers/scaler_grid3.sav"
+    joblib.dump(scaler_3, SAVEDIR_MODELS / scaler_grid3)
 
     x_test[x_test.columns] = scaler_test.transform(x_test)
 
@@ -257,12 +250,12 @@ def main():
     print("\nShifting data...")
 
 
-    data[df_columns['Seasonal']] = data[df_columns['Seasonal']].shift(forecast_window)
-    data[df_columns['Temperature']] = data[df_columns['Temperature']].shift(forecast_window)
+    data[DF_COLUMNS['Seasonal']] = data[DF_COLUMNS['Seasonal']].shift(FORECAST_WINDOW)
+    data[DF_COLUMNS['Temperature']] = data[DF_COLUMNS['Temperature']].shift(FORECAST_WINDOW)
     data = data.dropna()
 
-    data_with_lag[df_columns['Seasonal']] = data_with_lag[df_columns['Seasonal']].shift(forecast_window)
-    data_with_lag[df_columns['Temperature']] = data_with_lag[df_columns['Temperature']].shift(forecast_window)
+    data_with_lag[DF_COLUMNS['Seasonal']] = data_with_lag[DF_COLUMNS['Seasonal']].shift(FORECAST_WINDOW)
+    data_with_lag[DF_COLUMNS['Temperature']] = data_with_lag[DF_COLUMNS['Temperature']].shift(FORECAST_WINDOW)
     data_with_lag = data_with_lag.dropna()
 
 
@@ -271,13 +264,13 @@ def main():
     # saves two set of x and y, one with lag and one without
     print('\nExporting data...')
     #create y-values -> the loss 6 days ahead for each grid
-    y_grid1 = data['grid1-loss'].shift(-forecast_window).dropna()
-    y_grid2 = data['grid2-loss'].shift(-forecast_window).dropna()
-    y_grid3 = data['grid3-loss'].shift(-forecast_window).dropna()
+    y_grid1 = data['grid1-loss'].shift(-FORECAST_WINDOW).dropna()
+    y_grid2 = data['grid2-loss'].shift(-FORECAST_WINDOW).dropna()
+    y_grid3 = data['grid3-loss'].shift(-FORECAST_WINDOW).dropna()
 
     # this reduces the x-data since we do not have any targets for the last 6 days
-    data = data.head(data.shape[0]-forecast_window)
-    data_with_lag = data_with_lag.head(data.shape[0]-forecast_window)
+    data = data.head(data.shape[0]-FORECAST_WINDOW)
+    data_with_lag = data_with_lag.head(data.shape[0]-FORECAST_WINDOW)
 
     # splitting back to train and test, we let the test set have the original number of examples
     x_train = data.head(data.shape[0] - test.shape[0])
@@ -297,8 +290,8 @@ def main():
     #check that x and y have the same number of examples
     assert x_train.shape[0] == y_train_grid1.shape[0]
     assert x_test.shape[0] == y_test_grid1.shape[0]
-    assert x_train['grid1-loss'].iloc[forecast_window] == y_train_grid1.iloc[0]
-    assert x_test['grid1-loss'].iloc[forecast_window] == y_test_grid1.iloc[0]
+    assert x_train['grid1-loss'].iloc[FORECAST_WINDOW] == y_train_grid1.iloc[0]
+    assert x_test['grid1-loss'].iloc[FORECAST_WINDOW] == y_test_grid1.iloc[0]
 
     # x-values
     pickle_path = Path('Data/serialized/x_train')

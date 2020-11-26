@@ -111,7 +111,7 @@ def symmetric_mean_absolute_percentage_error(y_true, y_pred):
 def main():
     LOAD_DIR = Path('Data/').resolve()
     SAVE_DIR = Path('Results/').resolve()
-    MODEL = 'V' # set the model to evaluate, N = nbeats, X = xgboost, V = var, B = baseline
+    MODEL = 'N' # set the model to evaluate, N = nbeats, X = xgboost, V = var, B = baseline
     COLUMNS_TO_PREDICT = ['grid1-loss', 'grid2-loss', 'grid3-loss']
     observed = pd.read_csv(LOAD_DIR.joinpath('raw/train.csv'), header=0)
     test_true = pd.read_csv(LOAD_DIR.joinpath('raw/test.csv'), header=0)
