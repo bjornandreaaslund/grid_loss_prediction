@@ -25,7 +25,7 @@ def main():
 
     SAVEDIR_MODELS = Path('Models/').resolve()
     LOADDIR = Path('Data/').resolve()
-    SCALER_FILENAME = "scaler_test.sav"
+    SCALER_FILENAME = "scalers/scaler_test.sav"
     NOBS = 144 # 6 days
     LOOCKBACK_WINDOW = 7320 # 180 days
     COLUMNS_TO_PREDICT = ['grid1-loss', 'grid2-loss', 'grid3-loss']

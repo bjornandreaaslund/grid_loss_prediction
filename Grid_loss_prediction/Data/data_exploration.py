@@ -76,7 +76,7 @@ def main():
     # TODO: describe appropirate groups of columns
     grid_data.describe()
     grid_data.describe().T.to_latex(SAVEDIR_META.joinpath('descriptives_raw.tex'), float_format='%.2f')
-    pd.DataFrame(grid_data.shape[1]*[''], index=grid_data.columns, columns=['Description']).to_latex(savedir_meta.joinpath('features_raw.tex'))
+    pd.DataFrame(grid_data.shape[1]*[''], index=grid_data.columns, columns=['Description']).to_latex(SAVEDIR_META.joinpath('features_raw.tex'))
 
     print("Rows with NaN demand:")
     print(grid_data[grid_data['demand'].isna()], '\n')

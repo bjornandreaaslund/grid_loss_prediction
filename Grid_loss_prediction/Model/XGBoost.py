@@ -43,7 +43,6 @@ def main():
     GRID_NUMBER = 1 # select which grid to predict : 0 -> grid1, 1 -> grid2, 2 -> grid3
     COLUMNS_TO_PREDICT = ['grid1-loss', 'grid2-loss', 'grid3-loss']
     TARGET_COL = COLUMNS_TO_PREDICT[GRID_NUMBER] # select which column to predict
-    MAPE = make_scorer(mean_absolute_percentage_error, greater_is_better=False)
 
 
     ''' Read data '''
@@ -76,6 +75,12 @@ def main():
     y_train = [y_train_grid1, y_train_grid2, y_train_grid3][GRID_NUMBER] # select the y_train for the selected grid
     y_test = [y_test_grid1, y_test_grid2, y_test_grid3][GRID_NUMBER]
     scaler = [scaler_grid1, scaler_grid2, scaler_grid3][GRID_NUMBER] # select the scaler for the selected grid
+
+    def mean_absolute_percentage_error(y_true, y_pred):
+        y_true, y_pred = np.array(y_true), np.array(y_pred)
+        return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
+
+    MAPE = make_scorer(mean_absolute_percentage_error, greater_is_better=False)
 
 
     ''' Feature importance '''
@@ -133,13 +138,6 @@ def main():
     y_pred = xg_reg.predict(X_test_fs)
     # scaling back to original scaling
     y_pred = scaler.inverse_transform(pd.DataFrame(y_pred).values.reshape(-1, 1))
-    # train on the training data, and predicts all values in the test data
-    mae, rmse, mape = evaluate(np.array(y_observed[target_col]), np.array(y_true[target_col]), y_pred)
-    print("The whole test set predicted from the best features.")
-    print("MAE:", mae)
-    print("RMSE:", rmse)
-    print("MAPE:", mape)
-
 
     ''' Hyperparameter optimization '''
 

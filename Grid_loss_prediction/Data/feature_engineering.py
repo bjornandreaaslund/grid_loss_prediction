@@ -1,7 +1,7 @@
 import pandas as pd
 
 
-def create_lag_features(lags, lag_variables, data):
+def create_lag_features(lags, lag_variables, x_train, x_test):
     # we will keep the results in this dataframe
     data = pd.concat([x_train, x_test])
     data_with_lag = data.copy()

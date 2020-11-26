@@ -240,7 +240,7 @@ def main():
     lags = [1 ,2 ,3 ,4, 5, 6]
     # we will keep the results in this dataframe
     data = pd.concat([x_train, x_test])
-    data_with_lag = create_lag_features(lags, lag_variables, data)
+    data_with_lag = create_lag_features(lags, lag_variables, x_train, x_test)
 
 
     ''' Shifting data '''
