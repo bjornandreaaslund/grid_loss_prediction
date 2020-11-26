@@ -23,11 +23,32 @@ This repository is a part of a project conducted in the course TDT4173 - Machine
 3. Create a model
 4. Evaluate the model
 
-Below is an example on how to run the preprocessing, create a VAR model and evaluate the predictions.
+### How to run the baseline model
+```python
+python Grid_loss_prediction/Data/preprocessing.py
+python Grid_loss_prediction/Model/baseline.py
+python Grid_loss_prediction/Evaluation/evaluate.py # need to set MODEL = B in the main method
+```
+
+### How to run the VAR model
 ```python
 python Grid_loss_prediction/Data/preprocessing.py
 python Grid_loss_prediction/Model/var.py
 python Grid_loss_prediction/Evaluation/evaluate.py # need to set MODEL = V in the main method
+```
+
+### How to run the XGBoost model
+```python
+python Grid_loss_prediction/Data/preprocessing.py
+python Grid_loss_prediction/Model/XGBoost.py        # need to select the grid in "General settings", e.g. GRID_NUMBER = 1
+python Grid_loss_prediction/Evaluation/evaluate.py  # need to set MODEL = X in the main method
+```
+
+### How to run the N-BEATS model
+```python
+python Grid_loss_prediction/Data/preprocessing.py
+python Grid_loss_prediction/Model/nbeats.py         # need to select the grid in "General settings", and we want to train or not, e.g. GRID_NUMBER = 1, TRAINING = False
+python Grid_loss_prediction/Evaluation/evaluate.py  # need to set MODEL = N in the main method
 ```
 
 ## Dependencies
