@@ -1,5 +1,5 @@
 # Grid loss prediction
-A power grid transports the electricity from power producers to the consumers. However, all that is produced is not delivered to the customers. Some parts of it (typically around $8\%$) are lost in either transmission or distribution. In Norway, the grid companies are responsible for reporting this \textit{grid loss} to the institutes responsible for national transmission networks. They have to nominate the expected hourly loss one day ahead so that the electricity price can be decided. If their estimates miss the target, the companies have to pay for the difference. Therefore, it is in their interest to have as accurate predictions as possible.
+A power grid transports the electricity from power producers to the consumers. However, all that is produced is not delivered to the customers. Some parts of it (typically around 8%) are lost in either transmission or distribution. In Norway, the grid companies are responsible for reporting this grid loss to the institutes responsible for national transmission networks. They have to nominate the expected hourly loss one day ahead so that the electricity price can be decided. If their estimates miss the target, the companies have to pay for the difference. Therefore, it is in their interest to have as accurate predictions as possible.
 
 ## Motivation
 This repository is a part of a project conducted in the course TDT4173 - Machine Learning at NTNU. The task is  show that we know how to address a machine learning task and understand what it requires to train and evaluate a model. Therefore this repository includes code to prerocess raw data, train different models and different metrics to evaluate them.
@@ -62,4 +62,4 @@ python Grid_loss_prediction/Evaluation/evaluate.py  # need to set MODEL = N in t
 + joblib 0.14.0
 + tqdm 4.45.0
 + Statsmodels 0.9.0
-+ nbeats_keras.model.NBeatsNet
++ [nbeats-keras](https://github.com/philipperemy/n-beats) 
