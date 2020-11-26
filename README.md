@@ -13,6 +13,7 @@ This repository is a part of a project conducted in the course TDT4173 - Machine
     ├── Models                    # Trained models which are used several times
     ├── Results                   # Results generated from the evaluation for all the models
     ├── Videos                    # Videos from the validation set of N-BEATS during training
+    ├── .gitignore
     └── README.md
 
 
@@ -31,8 +32,13 @@ python Grid_loss_prediction/Evaluation/evaluate.py # need to set MODEL = V in th
 
 ## Dependencies
 
-+ Python
-+ Tensorflow
-+ Pandas
-+ sklearn
++ Python 3.6.8
++ Tensorflow 2.0.0
++ Pandas 1.0.3
++ Numpy 1.19.4
++ sklearn 0.22.2
++ seaborn 0.9.0
++ joblib 0.14.0
++ tqdm 4.45.0
++ Statsmodels 0.9.0
 + nbeats_keras.model.NBeatsNet
